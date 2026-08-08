@@ -170,7 +170,7 @@ function Invoke-MRCodexDiscovery {
         $initialize = [ordered]@{
             jsonrpc = '2.0'; id = 1; method = 'initialize'
             params = [ordered]@{
-                clientInfo = [ordered]@{ name = 'model-routing-governance'; version = '0.1.0' }
+                clientInfo = [ordered]@{ name = 'model-routing-governance'; version = '0.1.1' }
                 capabilities = [ordered]@{ experimentalApi = $true }
             }
         } | ConvertTo-Json -Compress -Depth 10
@@ -269,7 +269,7 @@ function Select-MRModels {
         Assert-MRCondition ($frontier.Count -eq 1) 'Antigravity Frontier-Zuordnung ist nicht eindeutig.'
         Assert-MRCondition ($fast.Count -eq 1) 'Antigravity Fast-Zuordnung ist nicht eindeutig.'
     } else {
-        throw "$Family unterstuetzt in v0.1.0 keine sichere automatische Zuordnung."
+        throw "$Family unterstuetzt in v0.1.1 keine sichere automatische Zuordnung."
     }
     $frontierModel = [hashtable] $frontier[0]
     $fastModel = [hashtable] $fast[0]
@@ -320,7 +320,7 @@ function New-MRConfig {
     $prefix = $Family.ToLowerInvariant()
     return [ordered]@{
         schemaVersion = '2.0'
-        generatedBy = 'model-routing-governance/0.1.0'
+        generatedBy = 'model-routing-governance/0.1.1'
         generatedAt = [DateTime]::UtcNow.ToString('o')
         harness = [ordered]@{ family = $Family; version = $Version; discoveryMode = $Mode }
         catalogSha256 = $CatalogHash

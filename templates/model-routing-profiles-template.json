@@ -1,6 +1,6 @@
 {
   "schemaVersion": "2.0",
-  "generatedBy": "model-routing-governance/0.1.0",
+  "generatedBy": "model-routing-governance/0.1.1",
   "generatedAt": "replace-with-utc-timestamp",
   "harness": {
     "family": "replace-with-agent-family",
