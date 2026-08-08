@@ -9,7 +9,7 @@ if ! command -v pwsh >/dev/null 2>&1; then
 fi
 
 if ! pwsh -NoLogo -NoProfile -Command 'if ($PSVersionTable.PSVersion.Major -lt 7) { exit 1 }' >/dev/null 2>&1; then
-  printf 'BLOCKIERT: Gefundenes pwsh ist aelter als Version 7. / BLOCKED: The detected pwsh is older than version 7.\n' >&2
+  printf 'BLOCKIERT: pwsh konnte nicht als PowerShell 7 oder neuer ausgefuehrt werden. / BLOCKED: pwsh could not be executed as PowerShell 7 or newer.\n' >&2
   exit 3
 fi
 
