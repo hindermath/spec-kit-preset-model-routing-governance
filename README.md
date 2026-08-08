@@ -1,7 +1,8 @@
 # Model Routing Governance
 
-Version `0.1.1` adds a deterministic missing-PowerShell boundary to the Bash
-test entry point. Routing, discovery, and authority semantics are unchanged.
+Version `0.1.2` validates PowerShell 7 before Bash wrappers delegate to it and
+reports missing or outdated installations as a bilingual `Blocked` result.
+Routing, discovery, and authority semantics are unchanged.
 
 ## Deutsch
 
@@ -65,7 +66,7 @@ fail closed, and no provider switch happens silently.
 ## Installation
 
 ```bash
-specify preset add --from https://github.com/hindermath/spec-kit-preset-model-routing-governance/archive/refs/tags/v0.1.1.zip --priority 61
+specify preset add --from https://github.com/hindermath/spec-kit-preset-model-routing-governance/archive/refs/tags/v0.1.2.zip --priority 61
 ```
 
 License: MIT.
