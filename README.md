@@ -1,9 +1,9 @@
 # Model Routing Governance
 
-Version `0.1.3` keeps generated agent instructions on the repository's
-top-level automation directory, adds a bilingual manual page, and separates
-copyable commands from explanatory text. PowerShell 7 validation and all
-routing, discovery, and authority semantics remain unchanged.
+Version `0.1.4` removes a stale version-specific diagnostic from an unsupported
+harness path. Generated agent instructions, bilingual documentation,
+PowerShell 7 validation, and all routing and authority semantics remain
+unchanged from 0.1.3.
 
 ## Deutsch
 
@@ -73,7 +73,7 @@ Codex binding only after explicit authorization.
 ## Installation
 
 ```bash
-specify preset add --from https://github.com/hindermath/spec-kit-preset-model-routing-governance/archive/refs/tags/v0.1.3.zip --priority 61
+specify preset add --from https://github.com/hindermath/spec-kit-preset-model-routing-governance/archive/refs/tags/v0.1.4.zip --priority 61
 ```
 
 License: MIT.
