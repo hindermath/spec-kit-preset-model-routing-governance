@@ -7,6 +7,56 @@ unchanged from 0.1.3.
 
 ## Deutsch
 
+### Einstieg und Ablauf / Getting Started and Workflow
+
+Voraussetzung: initialisiertes Zielprojekt, Spec Kit `>=0.8.3`, PowerShell 7
+und ein benannter Harness, also die lokale Agenten-Integration. Beginne nach
+Installation mit `$speckit-model-routing-status`. Falls eine Bindung fehlt
+oder veraltet ist, Vorschlag prüfen, genau einen lokalen Refresh ausdrücklich
+genehmigen und danach Status wiederholen. `Blocked` ist kein Auftrag zum
+Anbieterwechsel; ein Feature-Lauf benötigt einen eigenen Auftrag.
+
+*Prerequisites: an initialized target project, Spec Kit >=0.8.3, PowerShell 7
+and an identified local harness. After installation start with status. Inspect
+missing/stale binding proposals, explicitly authorize one local refresh, then
+repeat status. Blocked is not provider-switch authority; feature execution
+needs a separate instruction.*
+
+Das [Manifest](preset.yml) registriert eigene Commands und separate
+Policy-/Profilvorlagen, keine automatischen Plan-/Tasks-Wrapper.
+Vorlagen sind Startpunkte, keine installierte persönliche Modellliste.
+Das separate Agent-Guidance-Addendum wird nicht allein durch Registrierung
+in jede Agenten-Datei übernommen. Modelle, Reasoning und Verfügbarkeit
+bleiben lokal; Zugangsdaten nie in Git aufnehmen.
+
+*The [manifest](preset.yml) registers standalone commands and policy/profile
+starters, not automatic Plan/Tasks wrappers. Templates are not an installed
+personal model inventory. Registering the separate agent-guidance addendum
+does not prove inclusion in every agent file. Models, reasoning and
+availability stay local; never commit credentials.*
+
+Kleinere Prioritätszahlen haben höhere Auflösungspriorität. Andere Presets
+oder Projekt-Overrides können gleichnamige Starter ersetzen. Priorität ist
+keine Ausführungsreihenfolge; die stärkste deklarierte Routing-Rolle folgt
+einer eigenen fachlichen Regel. Eigene Kombinationen separat prüfen.
+
+*Lower numbers mean higher resolution precedence. Presets or local overrides
+may replace same-name starters. Priority is not execution order; strongest-role
+routing is a separate rule. Validate custom combinations separately.*
+
+Leserpfad / Reader path: [Installation](#installation) → [Rollen](#rollen) →
+[Harness-Fähigkeiten](#harness-fähigkeiten) → [Aufrufe](#aufrufe) →
+[English](#english). Fehlende Tools oder mehrdeutige Discovery klären, keinen
+Fallback erfinden. / Resolve reported tool/discovery blockers without guessing.
+
+Read-only Installationsprüfung / Read-only installation checks:
+
+```bash
+specify preset info model-routing-governance
+specify preset resolve model-routing-policy-template
+specify preset resolve model-routing-profiles-template
+```
+
 `model-routing-governance` ordnet Spec-Kit-Arbeiten stabilen Rollen zu und
 bindet diese Rollen auf jedem Rechner an tatsächlich verfügbare Modelle. Das
 Preset ist öffentlich optional und wird mit Priorität `61` nach Agent Parity
