@@ -1,5 +1,12 @@
 # Model Routing Governance
 
+Patch **0.1.5** liefert die verbesserte zweisprachige Einstiegs- und
+Kompositionsdokumentation. Verhalten und Berechtigungsgrenzen bleiben erhalten.
+[Release-Nachweis / Release record](docs/release-0.1.5-validation.md).
+
+*Patch 0.1.5 packages the improved bilingual getting-started and composition
+guide. Behavior and authority boundaries remain unchanged.*
+
 Version `0.1.4` removes a stale version-specific diagnostic from an unsupported
 harness path. Generated agent instructions, bilingual documentation,
 PowerShell 7 validation, and all routing and authority semantics remain
@@ -123,7 +130,7 @@ Codex binding only after explicit authorization.
 ## Installation
 
 ```bash
-specify preset add --from https://github.com/hindermath/spec-kit-preset-model-routing-governance/archive/refs/tags/v0.1.4.zip --priority 61
+specify preset add --from https://github.com/hindermath/spec-kit-preset-model-routing-governance/archive/refs/tags/v0.1.5.zip --priority 61
 ```
 
 License: MIT.
