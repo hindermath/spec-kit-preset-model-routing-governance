@@ -1,20 +1,10 @@
 {
-  "schemaVersion": "1.0",
+  "selectionMode": "quality-with-efficiency",
   "fallbackPolicy": "fail-closed",
-  "selectionPolicy": "safe-automatic",
-  "preferredHarness": "N/A",
-  "roleOrder": [
-    "script-only",
-    "fast-mechanical",
-    "long-running-implementation",
-    "coding-review",
-    "frontier-reasoning"
-  ],
-  "adapters": {
-    "Codex": "Enumerate",
-    "Antigravity": "EnumerateNames",
-    "Claude": "ValidateCandidate",
-    "Copilot": "ValidateCandidate",
-    "OpenCode": "ConfiguredOnly"
-  }
+  "maximumInventoryAgeHours": 24,
+  "approvedBy": "",
+  "approvedAt": "replace-with-utc-timestamp",
+  "catalogSha256": "replace-with-composed-catalog-hash",
+  "contextSha256": "replace-with-context-hash",
+  "candidatesSha256": "replace-with-approved-candidate-pool-hash"
 }

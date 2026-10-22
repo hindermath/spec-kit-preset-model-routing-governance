@@ -1,18 +1,17 @@
 ---
-description: Inspect harness-local model routing without changing files
+description: Inspect harness-local routing without inference or writes
 ---
 
-# Model Routing Status
+# Routing-Status / Routing status
 
-Inspect the current harness, its version, discovery capability, available
-models and reasoning levels, installed `model-routing.json` catalogs, and the
-effective local role bindings. This command is strictly read-only. Do not
-create or refresh a profile, do not invoke a model, and do not change Git or
-remote state.
+DE: Einen ausdruecklichen Harness und die lokale Konfiguration verwenden.
+Den Resolver aus diesem Preset mit `-Action Status` aufrufen; nicht still eine
+aeltere zentrale Kopie verwenden. Fuer eine konkrete Auswahl explizite
+Phasenanforderungen uebergeben. `-Discover` liest nur Inventar-Metadaten.
+Aligned, RefreshRequired, NeedsClarification, NotConfigured oder Blocked samt
+Grund und naechster Aktion berichten. Kein Refresh, Modellaufruf oder Git-Write.
 
-Resolve the script from the repository's top-level `scripts` directory when it
-exists; otherwise use
-`.specify/presets/model-routing-governance/scripts/resolve-model-routing.ps1`
-or its Bash wrapper. Run `-Action Status`. Report `Aligned`, `RefreshRequired`,
-`NeedsClarification`, or `Blocked`, followed by a text-first reason and exact
-next action.
+EN: Use an explicit harness and local configuration. Run this preset's
+resolver with Status, not an older central copy. Supply explicit phase
+requirements for selection. Discover only reads inventory metadata. Report
+status, reason and next action. Never refresh profiles, infer, or mutate Git.

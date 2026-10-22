@@ -1,406 +1,177 @@
 #Requires -Version 7.0
 <#
 .SYNOPSIS
-    Prueft oder aktualisiert lokale Spec-Kit-Modellbindungen.
-
+    Lokales Routing pruefen / Inspect local routing.
 .DESCRIPTION
-    DE: Erkennt das ausgewaehlte Agenten-Harness, liest dessen verfuegbare
-    Modelle soweit die lokale Schnittstelle dies belastbar erlaubt und ordnet
-    vier modellgestuetzte Spec-Kit-Rollen fail-closed zu. Konkrete Modelle
-    bleiben in einer lokalen, nicht versionierten Konfiguration.
-
-    EN: Detects the selected agent harness, reads available models where the
-    local interface supports reliable discovery, and maps four model-backed
-    Spec Kit roles with fail-closed behavior. Concrete models remain local.
-
+    DE: Status und Preview sind read-only ohne Inferenz. Discovery ist kein
+    Eignungsnachweis. Refresh schreibt nur mit expliziter lokaler Freigabe.
+    EN: Status and Preview never infer or write. Discovery is not suitability
+    evidence. Refresh requires explicit approval; it grants no run authority.
 .PARAMETER Action
-    Status ist read-only. Refresh schreibt die lokale Konfiguration atomar.
-
+    Status, Preview oder expliziter Refresh / Status, Preview or explicit Refresh.
 .PARAMETER Harness
-    Auto, Codex, Antigravity, Claude, Copilot oder OpenCode.
-
+    Expliziter Harness; Auto verlangt Klaerung / Explicit harness; Auto needs clarification.
 .PARAMETER ConfigPath
-    Lokaler Zielpfad. Ohne Angabe wird der Plattform-Konfigurationspfad oder
-    ein vorhandener Home-Baseline-Legacypfad verwendet.
-
+    Lokale, nicht versionierte Konfiguration / Local untracked configuration.
 .PARAMETER RoutingRoot
-    Wurzel der installierten Presets mit model-routing.json-Dateien.
-
-.PARAMETER DiscoveryFixture
-    Nur fuer deterministische Tests: JSON-Modellinventar statt Provideraufruf.
-
+    Installierte Routing-Vertraege / Installed routing contracts.
+.PARAMETER RequirementsPath
+    Explizite Phasenanforderungen / Explicit phase requirements JSON.
+.PARAMETER ProjectRoot
+    Gebundene Projektwurzel / Bound project root.
+.PARAMETER InputConfig
+    Genehmigter Migrationsentwurf / Approved migration draft for Refresh.
+.PARAMETER ApproveLocalRefresh
+    Explizite Schreibfreigabe, keine Laufberechtigung / Explicit write approval only.
+.PARAMETER Discover
+    Modellmetadaten lesen ohne Inferenz / Read model metadata without inference.
+.PARAMETER OutputFormat
+    Json oder barrierearmer Text / Json or accessible text.
 .EXAMPLE
-    pwsh -NoProfile -File scripts/resolve-model-routing.ps1 -Action Status -Harness Codex
-
+    ./resolve-model-routing.ps1 -Action Preview -Harness Codex -RequirementsPath phase.json -RoutingRoot .specify/presets
 .EXAMPLE
-    pwsh -NoProfile -File scripts/resolve-model-routing.ps1 -Action Refresh -Harness Antigravity
+    ./resolve-model-routing.ps1 -Action Refresh -Harness Claude -InputConfig draft.json -RequirementsPath phase.json -RoutingRoot .specify/presets -ApproveLocalRefresh -WhatIf
 #>
-[CmdletBinding(SupportsShouldProcess = $true)]
+[CmdletBinding(SupportsShouldProcess=$true)]
 param(
-    [Parameter(Mandatory)]
-    [ValidateSet('Status', 'Refresh')]
-    [string] $Action,
-
-    [ValidateSet('Auto', 'Codex', 'Antigravity', 'Claude', 'Copilot', 'OpenCode')]
-    [string] $Harness = 'Auto',
-
-    [string] $ConfigPath = '',
-    [string] $RoutingRoot = '',
-    [string] $DiscoveryFixture = '',
-
-    [ValidateSet('Text', 'Json')]
-    [string] $OutputFormat = 'Text'
+    [Parameter(Mandatory)][ValidateSet('Status','Preview','Refresh')][string] $Action,
+    [ValidateSet('Auto','Codex','Claude','Copilot','Antigravity','OpenCode')][string] $Harness='Auto',
+    [string] $ConfigPath='',
+    [string] $RoutingRoot='',
+    [string] $RequirementsPath='',
+    [string] $ProjectRoot=(Get-Location).Path,
+    [string] $InputConfig='',
+    [switch] $ApproveLocalRefresh,
+    [switch] $Discover,
+    [ValidateSet('Text','Json')][string] $OutputFormat='Text'
 )
-
 Set-StrictMode -Version Latest
-$ErrorActionPreference = 'Stop'
-
-$script:Harnesses = [ordered]@{
-    Codex = [ordered]@{ executable = 'codex'; discoveryMode = 'Enumerate' }
-    Antigravity = [ordered]@{ executable = 'agy'; discoveryMode = 'EnumerateNames' }
-    Claude = [ordered]@{ executable = 'claude'; discoveryMode = 'ValidateCandidate' }
-    Copilot = [ordered]@{ executable = 'copilot'; discoveryMode = 'ValidateCandidate' }
-    OpenCode = [ordered]@{ executable = 'opencode'; discoveryMode = 'ConfiguredOnly' }
-}
-
-function Assert-MRCondition {
-    param([Parameter(Mandatory)][bool] $Condition, [Parameter(Mandatory)][string] $Message)
-    if (-not $Condition) { throw $Message }
-}
-
-function Read-MRJson {
-    param([Parameter(Mandatory)][string] $Path)
-    Assert-MRCondition (Test-Path -LiteralPath $Path -PathType Leaf) "JSON-Datei fehlt: $Path"
-    return Get-Content -LiteralPath $Path -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable
-}
-
-function Write-MRJsonAtomic {
-    param([Parameter(Mandatory)][string] $Path, [Parameter(Mandatory)] $Value)
-    $parent = Split-Path -Parent $Path
-    if ($parent) { [void](New-Item -ItemType Directory -Path $parent -Force) }
-    $temporary = "${Path}.tmp.$PID"
-    try {
-        $Value | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $temporary -Encoding utf8NoBOM
-        Move-Item -LiteralPath $temporary -Destination $Path -Force
-    } finally {
-        Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
-    }
-}
-
-function Get-MRDefaultConfigPath {
-    $legacy = Join-Path $HOME '.home-baseline/spec-kit/runner-profiles.local.json'
-    if (Test-Path -LiteralPath $legacy -PathType Leaf) { return $legacy }
-    if ($IsWindows -and -not [string]::IsNullOrWhiteSpace($env:APPDATA)) {
-        return Join-Path $env:APPDATA 'spec-kit/model-routing-profiles.json'
-    }
-    $configHome = if (-not [string]::IsNullOrWhiteSpace($env:XDG_CONFIG_HOME)) {
-        $env:XDG_CONFIG_HOME
-    } else {
-        Join-Path $HOME '.config'
-    }
-    return Join-Path $configHome 'spec-kit/model-routing-profiles.json'
-}
-
-function Get-MRCommandVersion {
-    param([Parameter(Mandatory)][string] $Executable)
-    $lines = @(& $Executable --version 2>&1)
-    Assert-MRCondition ($LASTEXITCODE -eq 0 -and $lines.Count -gt 0) "Version fuer '$Executable' nicht lesbar."
-    return [string] $lines[0]
-}
-
-function Get-MRInstalledHarnesses {
-    $found = [Collections.Generic.List[string]]::new()
-    foreach ($entry in $script:Harnesses.GetEnumerator()) {
-        if ($null -ne (Get-Command ([string] $entry.Value.executable) -ErrorAction SilentlyContinue)) {
-            $found.Add([string] $entry.Key)
-        }
-    }
-    return $found.ToArray()
-}
-
-function Resolve-MRHarness {
-    param([Parameter(Mandatory)][string] $Requested, [string] $ExistingConfig)
-    if ($Requested -ne 'Auto') { return $Requested }
-    if (-not [string]::IsNullOrWhiteSpace($env:SPECKIT_AGENT_FAMILY) -and
-        $script:Harnesses.Contains($env:SPECKIT_AGENT_FAMILY)) {
-        return [string] $env:SPECKIT_AGENT_FAMILY
-    }
-    if (Test-Path -LiteralPath $ExistingConfig -PathType Leaf) {
-        $existing = Read-MRJson $ExistingConfig
-        if ($existing.harness -is [hashtable] -and
-            $script:Harnesses.Contains([string] $existing.harness.family)) {
-            return [string] $existing.harness.family
-        }
-    }
-    $installed = @(Get-MRInstalledHarnesses)
-    Assert-MRCondition ($installed.Count -eq 1) "Harness Auto ist mehrdeutig. Verfuegbar: $($installed -join ', ')."
-    return [string] $installed[0]
-}
-
-function Get-MRCatalogHash {
-    param([string] $Root)
-    if ([string]::IsNullOrWhiteSpace($Root) -or -not (Test-Path -LiteralPath $Root -PathType Container)) {
-        return 'N/A'
-    }
-    $builder = [Text.StringBuilder]::new()
-    $files = @(Get-ChildItem -LiteralPath $Root -Filter 'model-routing.json' -File -Recurse | Sort-Object FullName)
-    foreach ($file in $files) {
-        $text = (Get-Content -LiteralPath $file.FullName -Raw -Encoding utf8).Replace("`r`n", "`n").Replace("`r", "`n")
-        [void]$builder.Append($file.Name).Append("`n").Append($text).Append("`n")
-    }
-    if ($files.Count -eq 0) { return 'N/A' }
-    $bytes = [Text.Encoding]::UTF8.GetBytes($builder.ToString())
-    return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
-}
+$ErrorActionPreference='Stop'
+Import-Module (Join-Path $PSScriptRoot 'dynamic-model-routing.psm1') -Force
 
 function Invoke-MRCodexDiscovery {
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = 'codex'
-    $start.ArgumentList.Add('app-server')
-    $start.ArgumentList.Add('--listen')
-    $start.ArgumentList.Add('stdio://')
-    $start.UseShellExecute = $false
-    $start.RedirectStandardInput = $true
-    $start.RedirectStandardOutput = $true
-    $start.RedirectStandardError = $true
-    $process = [Diagnostics.Process]::new()
-    $process.StartInfo = $start
-    Assert-MRCondition $process.Start() 'Codex app-server konnte nicht gestartet werden.'
+    foreach ($argument in @('app-server','--listen','stdio://')) { $start.ArgumentList.Add($argument) }
+    $start.UseShellExecute=$false; $start.RedirectStandardInput=$true
+    $start.RedirectStandardOutput=$true; $start.RedirectStandardError=$true
+    $process=[Diagnostics.Process]::new(); $process.StartInfo=$start; $started=$false
     try {
-        $initialize = [ordered]@{
-            jsonrpc = '2.0'; id = 1; method = 'initialize'
-            params = [ordered]@{
-                clientInfo = [ordered]@{ name = 'model-routing-governance'; version = '0.1.2' }
-                capabilities = [ordered]@{ experimentalApi = $true }
+        $started=$process.Start()
+        if (-not $started) { throw 'Codex discovery could not start.' }
+        $stderrTask=$process.StandardError.ReadToEndAsync()
+        $deadline=[DateTime]::UtcNow.AddSeconds(20)
+        $request=@{id=1;method='initialize';params=@{clientInfo=@{name='model-routing-governance';version='development'};capabilities=@{experimentalApi=$true}}}
+        $process.StandardInput.WriteLine(($request | ConvertTo-Json -Depth 10 -Compress)); $process.StandardInput.Flush()
+        $requestId=1; $models=[Collections.Generic.List[object]]::new(); $pages=0
+        $cursors=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+        while ($true) {
+            $remaining=[int]($deadline-[DateTime]::UtcNow).TotalMilliseconds
+            if ($remaining -le 0) { throw 'Codex discovery timeout.' }
+            $read=$process.StandardOutput.ReadLineAsync()
+            if (-not $read.Wait($remaining)) { throw 'Codex discovery timeout.' }
+            $line=$read.GetAwaiter().GetResult()
+            if ($null -eq $line) { throw 'Codex ended before discovery completed.' }
+            $message=$line | ConvertFrom-Json -AsHashtable
+            if (-not $message.ContainsKey('id') -or [int]$message.id -ne $requestId) { continue }
+            if ($message.ContainsKey('error')) { throw 'Codex rejected discovery.' }
+            if ($requestId -eq 1) {
+                $process.StandardInput.WriteLine('{"method":"initialized","params":{}}')
+                $next=$null
+            } else {
+                foreach ($item in @($message.result.data)) { if (-not [bool]$item.hidden) { $models.Add($item) } }
+                $next=$message.result.nextCursor
+                if ([string]::IsNullOrWhiteSpace([string]$next)) { break }
+                if (-not $cursors.Add([string]$next)) { throw 'Repeated Codex pagination cursor.' }
             }
-        } | ConvertTo-Json -Compress -Depth 10
-        $list = [ordered]@{
-            jsonrpc = '2.0'; id = 2; method = 'model/list'
-            params = [ordered]@{ limit = 100; includeHidden = $false }
-        } | ConvertTo-Json -Compress -Depth 10
-        $process.StandardInput.WriteLine($initialize)
-        $process.StandardInput.Flush()
-        # Codex completes initialize asynchronously. The model/list request is
-        # sent only after a bounded settling interval so it is not discarded
-        # while the app-server is still negotiating client capabilities.
-        Start-Sleep -Milliseconds 1000
-        $process.StandardInput.WriteLine($list)
-        $process.StandardInput.Flush()
-        Start-Sleep -Milliseconds 2000
-        $process.StandardInput.Close()
-        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
-        $stderrTask = $process.StandardError.ReadToEndAsync()
-        if (-not $process.WaitForExit(15000)) {
-            $process.Kill($true)
-            throw 'Codex model/list Timeout.'
+            $pages++; if ($pages -gt 100) { throw 'Codex discovery pagination limit exceeded.' }
+            $requestId++
+            $parameters=@{limit=100;includeHidden=$false}; if ($null -ne $next) { $parameters.cursor=$next }
+            $process.StandardInput.WriteLine((@{id=$requestId;method='model/list';params=$parameters} | ConvertTo-Json -Compress)); $process.StandardInput.Flush()
         }
-        $stdout = $stdoutTask.GetAwaiter().GetResult()
-        $stderr = $stderrTask.GetAwaiter().GetResult()
-        Assert-MRCondition ($process.ExitCode -eq 0) "Codex model/list fehlgeschlagen: $stderr"
-        foreach ($line in @($stdout -split "`n")) {
-            if ([string]::IsNullOrWhiteSpace($line)) { continue }
-            try { $message = $line | ConvertFrom-Json -AsHashtable } catch { continue }
-            if ($message.ContainsKey('id') -and [string] $message.id -eq '2' -and
-                $message.ContainsKey('result') -and $message.result -is [hashtable]) {
-                return @($message.result.data | Where-Object { -not [bool] $_.hidden })
-            }
-        }
-        throw 'Codex model/list lieferte keine Modellantwort.'
+        return $models.ToArray()
     } finally {
+        if ($started -and -not $process.HasExited) { $process.Kill($true); [void]$process.WaitForExit(2000) }
+        if ($started) { [void]$stderrTask.GetAwaiter().GetResult() }
         $process.Dispose()
     }
 }
 
-function Invoke-MRAntigravityDiscovery {
-    $lines = @(& agy models 2>&1)
-    Assert-MRCondition ($LASTEXITCODE -eq 0) 'agy models ist fehlgeschlagen.'
-    return @($lines | ForEach-Object { (([string] $_) -split "`t", 2)[0].Trim() } | Where-Object { $_ -match '^[A-Za-z0-9][A-Za-z0-9._-]+$' } | ForEach-Object {
-        [ordered]@{
-            id = $_; model = $_; displayName = $_; description = 'Name-only Antigravity catalog entry'
-            hidden = $false; isDefault = $false; defaultReasoningEffort = 'medium'
-            supportedReasoningEfforts = @(
-                [ordered]@{ reasoningEffort = 'low'; description = 'Low' },
-                [ordered]@{ reasoningEffort = 'medium'; description = 'Medium' },
-                [ordered]@{ reasoningEffort = 'high'; description = 'High' }
-            )
-        }
-    })
-}
-
-function Get-MRModels {
-    param([Parameter(Mandatory)][string] $Family, [string] $Fixture)
-    if (-not [string]::IsNullOrWhiteSpace($Fixture)) {
-        $fixtureData = Read-MRJson ([IO.Path]::GetFullPath($Fixture))
-        Assert-MRCondition ($fixtureData.models -is [object[]]) 'DiscoveryFixture.models muss ein Array sein.'
-        return @($fixtureData.models)
-    }
+function Get-MRDiscovery {
+    param([string] $Family, [hashtable] $LocalConfig)
     switch ($Family) {
-        'Codex' { return @(Invoke-MRCodexDiscovery) }
-        'Antigravity' { return @(Invoke-MRAntigravityDiscovery) }
-        default { return @() }
-    }
-}
-
-function Test-MRReasoning {
-    param([Parameter(Mandatory)][hashtable] $Model, [Parameter(Mandatory)][string] $Effort)
-    return @($Model.supportedReasoningEfforts | ForEach-Object { [string] $_.reasoningEffort }) -contains $Effort
-}
-
-function Select-MRModels {
-    param([Parameter(Mandatory)][string] $Family, [Parameter(Mandatory)][object[]] $Models)
-    Assert-MRCondition ($Models.Count -gt 0) "Keine Modelle fuer $Family erkannt."
-    if ($Family -eq 'Codex') {
-        $frontier = @($Models | Where-Object { [bool] $_.isDefault })
-        if ($frontier.Count -ne 1) {
-            $frontier = @($Models | Where-Object { [string] $_.description -match '(?i)frontier' })
+        Codex {
+            $models=@(Invoke-MRCodexDiscovery | ForEach-Object {
+                @{id=[string]$_.model;efforts=@($_.supportedReasoningEfforts | ForEach-Object {[string]$_.reasoningEffort})}
+            })
+            return @{mode='Enumerate';models=$models;access='NotProbed'}
         }
-        Assert-MRCondition ($frontier.Count -eq 1) 'Codex Frontier-Zuordnung ist nicht eindeutig.'
-        $fast = @($Models | Where-Object { [string] $_.description -match '(?i)fast and affordable' })
-        if ($fast.Count -ne 1) {
-            $fast = @($Models | Where-Object { [string] $_.description -match '(?i)small, fast|ultra-fast' })
+        Antigravity {
+            $lines=@(& agy models 2>&1)
+            if ($LASTEXITCODE -ne 0) { throw 'agy models failed.' }
+            $models=@($lines | ForEach-Object {
+                $parts=([string]$_) -split "`t",2
+                if ($parts.Count -eq 2 -and $parts[0] -match '^[A-Za-z0-9][A-Za-z0-9._:/-]+$') {
+                    @{id=$parts[0];efforts=@();capabilityStatus='Unverified'}
+                }
+            })
+            return @{mode='EnumerateNames';models=$models;access='NotProbed'}
         }
-        Assert-MRCondition ($fast.Count -eq 1) 'Codex Fast-Zuordnung ist nicht eindeutig.'
-    } elseif ($Family -eq 'Antigravity') {
-        $frontier = @($Models | Where-Object { [string] $_.model -match '^claude-opus-.+-thinking$' })
-        if ($frontier.Count -ne 1) {
-            $frontier = @($Models | Where-Object { [string] $_.model -match '^gemini-.+-pro-high$' })
-        }
-        $fast = @($Models | Where-Object { [string] $_.model -match '^gemini-.+-flash-medium$' } | Select-Object -First 1)
-        Assert-MRCondition ($frontier.Count -eq 1) 'Antigravity Frontier-Zuordnung ist nicht eindeutig.'
-        Assert-MRCondition ($fast.Count -eq 1) 'Antigravity Fast-Zuordnung ist nicht eindeutig.'
-    } else {
-        throw "$Family unterstuetzt in diesem Preset-Release keine sichere automatische Zuordnung."
-    }
-    $frontierModel = [hashtable] $frontier[0]
-    $fastModel = [hashtable] $fast[0]
-    Assert-MRCondition (Test-MRReasoning $frontierModel 'high') 'Frontier-Modell unterstuetzt Reasoning high nicht.'
-    $fastEffort = if (Test-MRReasoning $fastModel 'medium') { 'medium' } elseif (Test-MRReasoning $fastModel 'low') { 'low' } else { '' }
-    Assert-MRCondition (-not [string]::IsNullOrWhiteSpace($fastEffort)) 'Fast-Modell besitzt keine sichere Reasoning-Stufe.'
-    return [ordered]@{ frontier = $frontierModel; fast = $fastModel; frontierEffort = 'high'; fastEffort = $fastEffort }
-}
-
-function New-MRProfile {
-    param(
-        [Parameter(Mandatory)][string] $Family,
-        [Parameter(Mandatory)][string] $Role,
-        [Parameter(Mandatory)][hashtable] $Model,
-        [Parameter(Mandatory)][string] $Effort
-    )
-    $executable = [string] $script:Harnesses[$Family].executable
-    if ($Family -eq 'Codex') {
-        $preflightArguments = @('exec', '--ephemeral', '--model', '{model}', '--config', 'model_reasoning_effort="{reasoningEffort}"', '--sandbox', 'read-only', '--cd', '{worktree}', 'Reply exactly MODEL_READY without using tools.')
-        $sandbox = if ($Role -eq 'fast-mechanical') { 'read-only' } else { 'workspace-write' }
-        $arguments = @('exec', '--ephemeral', '--model', '{model}', '--config', 'model_reasoning_effort="{reasoningEffort}"', '--sandbox', $sandbox, '--cd', '{worktree}', '--output-last-message', '{outputFile}', '{prompt}')
-    } elseif ($Family -eq 'Antigravity') {
-        $preflightArguments = @('--model', '{model}', '--effort', '{reasoningEffort}', '--mode', 'plan', '--print', 'Reply exactly MODEL_READY without using tools.')
-        $mode = if ($Role -eq 'fast-mechanical') { 'plan' } else { 'accept-edits' }
-        $arguments = @('--model', '{model}', '--effort', '{reasoningEffort}', '--mode', $mode, '--print', '{prompt}')
-    } else {
-        throw "Kein Profilrenderer fuer $Family."
-    }
-    return [ordered]@{
-        routingRole = $Role
-        agentFamily = $Family
-        model = [string] $Model.model
-        reasoningEffort = $Effort
-        executable = $executable
-        preflight = [ordered]@{ executable = $executable; arguments = $preflightArguments }
-        arguments = $arguments
-    }
-}
-
-function New-MRConfig {
-    param(
-        [Parameter(Mandatory)][string] $Family,
-        [Parameter(Mandatory)][string] $Version,
-        [Parameter(Mandatory)][string] $Mode,
-        [Parameter(Mandatory)][hashtable] $Selection,
-        [Parameter(Mandatory)][string] $CatalogHash
-    )
-    $prefix = $Family.ToLowerInvariant()
-    return [ordered]@{
-        schemaVersion = '2.0'
-        generatedBy = 'model-routing-governance/0.1.2'
-        generatedAt = [DateTime]::UtcNow.ToString('o')
-        harness = [ordered]@{ family = $Family; version = $Version; discoveryMode = $Mode }
-        catalogSha256 = $CatalogHash
-        profiles = [ordered]@{
-            "${prefix}-frontier-auto" = New-MRProfile $Family 'frontier-reasoning' $Selection.frontier $Selection.frontierEffort
-            "${prefix}-implementation-auto" = New-MRProfile $Family 'long-running-implementation' $Selection.frontier $Selection.frontierEffort
-            "${prefix}-review-auto" = New-MRProfile $Family 'coding-review' $Selection.frontier $Selection.frontierEffort
-            "${prefix}-fast-auto" = New-MRProfile $Family 'fast-mechanical' $Selection.fast $Selection.fastEffort
+        default {
+            if (-not $LocalConfig.ContainsKey('inventory')) { return @{mode='ConfiguredOnly';models=@();access='NotProbed'} }
+            return @{mode='ConfiguredCandidates';models=@($LocalConfig.inventory.models);access='NotProbed'}
         }
     }
 }
 
-function Write-MRResult {
-    param([Parameter(Mandatory)][hashtable] $Result, [Parameter(Mandatory)][string] $Format)
-    if ($Format -eq 'Json') { $Result | ConvertTo-Json -Depth 20; return }
-    Write-Output "Model routing: $($Result.status)"
-    Write-Output "Harness: $($Result.harness)"
-    Write-Output "Discovery: $($Result.discoveryMode)"
-    Write-Output "Models: $($Result.modelCount)"
-    Write-Output "Config: $($Result.configPath)"
-    Write-Output "Next action: $($Result.nextAction)"
-}
-
-if ([string]::IsNullOrWhiteSpace($ConfigPath)) { $ConfigPath = Get-MRDefaultConfigPath }
-$ConfigPath = [IO.Path]::GetFullPath($ConfigPath)
-$resolvedHarness = Resolve-MRHarness $Harness $ConfigPath
-$adapter = $script:Harnesses[$resolvedHarness]
-$executable = [string] $adapter.executable
-Assert-MRCondition ($null -ne (Get-Command $executable -ErrorAction SilentlyContinue)) "Harness executable fehlt: $executable"
-$version = Get-MRCommandVersion $executable
-$models = @(Get-MRModels $resolvedHarness $DiscoveryFixture)
-$mode = [string] $adapter.discoveryMode
-$catalogHash = Get-MRCatalogHash $RoutingRoot
-
+$result=@{schemaVersion='1.0';status='Blocked';exitCode=3;reason='';nextAction='Correct routing input and repeat Status/Preview.'}
 try {
-    $selection = Select-MRModels $resolvedHarness $models
-    $candidate = New-MRConfig $resolvedHarness $version $mode $selection $catalogHash
-    $status = if (Test-Path -LiteralPath $ConfigPath -PathType Leaf) {
-        $existing = Read-MRJson $ConfigPath
-        if ([string] $existing.schemaVersion -ne '2.0') {
-            'RefreshRequired'
-        } else {
-            $existingComparable = [ordered]@{
-                schemaVersion = [string] $existing.schemaVersion
-                generatedBy = [string] $existing.generatedBy
-                harness = $existing.harness
-                catalogSha256 = [string] $existing.catalogSha256
-                profiles = $existing.profiles
-            } | ConvertTo-Json -Depth 30 -Compress
-            $candidateComparable = [ordered]@{
-                schemaVersion = [string] $candidate.schemaVersion
-                generatedBy = [string] $candidate.generatedBy
-                harness = $candidate.harness
-                catalogSha256 = [string] $candidate.catalogSha256
-                profiles = $candidate.profiles
-            } | ConvertTo-Json -Depth 30 -Compress
-            if ($existingComparable -ceq $candidateComparable) { 'Aligned' } else { 'RefreshRequired' }
-        }
-    } else { 'RefreshRequired' }
-    if ($Action -eq 'Refresh') {
-        if ($PSCmdlet.ShouldProcess($ConfigPath, "Write local $resolvedHarness model routing profile")) {
-            Write-MRJsonAtomic $ConfigPath $candidate
-            $status = 'Aligned'
+    if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
+        $legacy=Join-Path $HOME '.home-baseline/spec-kit/runner-profiles.local.json'
+        if (Test-Path -LiteralPath $legacy -PathType Leaf) { $ConfigPath=$legacy }
+        elseif ($IsWindows -and $env:APPDATA) { $ConfigPath=Join-Path $env:APPDATA 'spec-kit/model-routing-profiles.json' }
+        else {
+            $base=if ($env:XDG_CONFIG_HOME) {$env:XDG_CONFIG_HOME} else {Join-Path $HOME '.config'}
+            $ConfigPath=Join-Path $base 'spec-kit/model-routing-profiles.json'
         }
     }
-    Write-MRResult ([ordered]@{
-        status = $status; harness = $resolvedHarness; harnessVersion = $version
-        discoveryMode = $mode; modelCount = $models.Count; configPath = $ConfigPath
-        catalogSha256 = $catalogHash
-        roles = @($candidate.profiles.GetEnumerator() | ForEach-Object {
-            [ordered]@{ role = [string] $_.Value.routingRole; model = [string] $_.Value.model; reasoningEffort = [string] $_.Value.reasoningEffort }
-        })
-        nextAction = if ($status -eq 'Aligned') { 'N/A' } else { 'Run speckit.model-routing-refresh with explicit local authority.' }
-    }) $OutputFormat
-    if ($status -eq 'RefreshRequired') { exit 2 }
-} catch {
-    Write-MRResult ([ordered]@{
-        status = 'Blocked'; harness = $resolvedHarness; harnessVersion = $version
-        discoveryMode = $mode; modelCount = $models.Count; configPath = $ConfigPath
-        reason = $_.Exception.Message; nextAction = 'Resolve the reported harness or mapping blocker and repeat status.'
-    }) $OutputFormat
-    exit 3
-}
+    $config=if (Test-Path -LiteralPath $ConfigPath -PathType Leaf) {Read-MRDocument $ConfigPath} else {@{}}
+    if ($Harness -eq 'Auto') {
+        $result.status='NeedsClarification'; $result.exitCode=4; $result.reason='Select one explicit harness; Auto grants no provider-switch authority.'
+    } elseif ($Harness -eq 'OpenCode' -and $config.Count -eq 0 -and $Action -ne 'Refresh' -and -not $Discover) {
+        $result.status='NotConfigured'; $result.exitCode=5; $result.reason='Optional OpenCode has no explicitly configured project/provider candidates.'
+    } else {
+        $executable=@{Codex='codex';Claude='claude';Copilot='copilot';Antigravity='agy';OpenCode='opencode'}[$Harness]
+        $versionLines=@(& $executable --version 2>&1)
+        if ($LASTEXITCODE -ne 0 -or $versionLines.Count -eq 0) { throw 'Harness version unavailable.' }
+        $version=[string]$versionLines[0]
+        if ($Action -eq 'Refresh') {
+            if (-not $ApproveLocalRefresh -or [string]::IsNullOrWhiteSpace($InputConfig)) { throw 'Refresh requires -ApproveLocalRefresh and an explicit -InputConfig; no implicit migration.' }
+            $config=Read-MRDocument $InputConfig
+        }
+        if ($Discover) {
+            if ($Action -eq 'Refresh') { throw 'Discovery and persistent Refresh must be separate reviewed operations.' }
+            $result=@{schemaVersion='1.0';status='NeedsClarification';exitCode=4;harness=$Harness;harnessVersion=$version;inventory=(Get-MRDiscovery $Harness $config);reason='Discovery is not suitability or access proof.';nextAction='Review local candidate evidence and use Preview.'}
+        } elseif ($config.Count -eq 0 -or [string]$config.schemaVersion -ne '3.0') {
+            $result.status=if ($config.Count -gt 0) {'RefreshRequired'} elseif ($Harness -eq 'OpenCode') {'NotConfigured'} else {'NeedsClarification'}
+            $result.exitCode=@{RefreshRequired=2;NotConfigured=5;NeedsClarification=4}[$result.status]
+            $result.reason='No schema-3 policy; old profiles remain untouched and require explicit migration.'
+        } elseif ([string]::IsNullOrWhiteSpace($RequirementsPath)) {
+            $result.status='NeedsClarification'; $result.exitCode=4; $result.reason='Provide explicit phase requirements; no implied difficulty classification.'
+        } else {
+            if ([string]::IsNullOrWhiteSpace($RoutingRoot)) { $RoutingRoot=Join-Path $ProjectRoot '.specify/presets' }
+            $catalog=Get-MRCatalog $RoutingRoot
+            $requirements=Read-MRDocument $RequirementsPath
+            $result=Resolve-MRSelection -Config $config -Requirements $requirements -Catalog $catalog -Harness $Harness -HarnessVersion $version -ProjectRoot $ProjectRoot
+            if ($Action -eq 'Refresh' -and $result.exitCode -eq 0 -and $PSCmdlet.ShouldProcess($ConfigPath,'Persist explicitly approved local schema-3 routing policy')) {
+                $parent=Split-Path -Parent ([IO.Path]::GetFullPath($ConfigPath)); [void](New-Item -ItemType Directory -Path $parent -Force)
+                $temporary=Join-Path $parent ([IO.Path]::GetRandomFileName())
+                try { $config | ConvertTo-Json -Depth 50 | Set-Content -LiteralPath $temporary -Encoding utf8NoBOM; Move-Item -LiteralPath $temporary -Destination $ConfigPath -Force }
+                finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force } }
+            }
+        }
+    }
+} catch { $result.status='Blocked'; $result.exitCode=3; $result.reason=$_.Exception.Message }
+if ($OutputFormat -eq 'Json') { $result | ConvertTo-Json -Depth 50 }
+else { Write-Output "Model routing: $($result.status)"; Write-Output "Reason / Grund: $($result.reason)"; Write-Output "Next action / Naechste Aktion: $($result.nextAction)" }
+exit [int]$result.exitCode

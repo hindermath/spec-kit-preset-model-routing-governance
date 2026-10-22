@@ -1,0 +1,24 @@
+name: Dynamic routing fixtures
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  offline-fixtures:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Bash entrypoint (no inference)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: bash tests/test-model-routing-discovery.sh
+      - name: PowerShell fixtures (no inference)
+        shell: pwsh
+        run: ./tests/test-dynamic-model-routing.ps1

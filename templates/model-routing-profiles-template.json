@@ -1,25 +1,76 @@
 {
-  "schemaVersion": "2.0",
-  "generatedBy": "model-routing-governance/0.1.2",
-  "generatedAt": "replace-with-utc-timestamp",
+  "schemaVersion": "3.0",
   "harness": {
-    "family": "replace-with-agent-family",
-    "version": "replace-with-local-version",
-    "discoveryMode": "Enumerate"
+    "family": "replace-with-explicit-harness",
+    "version": "replace-with-current-cli-version"
   },
-  "catalogSha256": "replace-with-catalog-hash",
-  "profiles": {
-    "replace-with-frontier-profile": {
-      "routingRole": "frontier-reasoning",
-      "agentFamily": "replace-with-agent-family",
-      "model": "replace-with-discovered-model",
-      "reasoningEffort": "high",
-      "executable": "replace-with-agent-executable",
-      "preflight": {
-        "executable": "replace-with-agent-executable",
-        "arguments": ["replace-with-read-only-preflight"]
+  "context": {
+    "projectRoot": "replace-with-project-root",
+    "providerContextId": "replace-with-local-opaque-context-id",
+    "bindings": [
+      {
+        "kind": "account",
+        "path": "replace-with-effective-local-context-file",
+        "sha256": "replace-with-sha256"
       },
-      "arguments": ["replace-with-phase-arguments"]
+      {
+        "kind": "provider",
+        "path": "replace-with-effective-local-context-file",
+        "sha256": "replace-with-sha256"
+      },
+      {
+        "kind": "project",
+        "path": "replace-with-effective-local-context-file",
+        "sha256": "replace-with-sha256"
+      }
+    ]
+  },
+  "inventory": {
+    "collectedAt": "replace-with-utc-timestamp",
+    "source": {
+      "path": "replace-with-reviewed-inventory-source",
+      "sha256": "replace-with-sha256",
+      "reviewer": "",
+      "reviewedAt": "replace-with-utc-timestamp",
+      "expiresAt": "replace-with-utc-timestamp"
+    },
+    "models": []
+  },
+  "policy": {
+    "selectionMode": "quality-with-efficiency",
+    "fallbackPolicy": "fail-closed",
+    "maximumInventoryAgeHours": 24,
+    "approvedBy": "",
+    "approvedAt": "replace-with-utc-timestamp",
+    "catalogSha256": "replace-with-composed-catalog-hash",
+    "contextSha256": "replace-with-context-hash",
+    "candidatesSha256": "replace-with-approved-candidate-pool-hash"
+  },
+  "candidates": [
+    {
+      "id": "replace-with-reviewed-local-candidate",
+      "model": "replace-with-concrete-inventory-id",
+      "effort": "replace-with-verified-effort",
+      "providerContextId": "replace-with-local-opaque-context-id",
+      "roles": [
+        "frontier-reasoning"
+      ],
+      "complexities": [
+        "normal"
+      ],
+      "risks": [
+        "normal"
+      ],
+      "capabilities": [],
+      "contextTokens": null,
+      "preferenceRank": null,
+      "evidence": {
+        "path": "replace-with-reviewed-suitability-evidence",
+        "sha256": "replace-with-sha256",
+        "reviewer": "",
+        "reviewedAt": "replace-with-utc-timestamp",
+        "expiresAt": "replace-with-utc-timestamp"
+      }
     }
-  }
+  ]
 }

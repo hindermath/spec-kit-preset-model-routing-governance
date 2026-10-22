@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "1.0",
+  "command": "replace-with-declared-command",
+  "role": "replace-with-strongest-declared-role",
+  "complexity": "replace-with-simple-normal-or-challenging",
+  "risk": "replace-with-low-normal-or-high",
+  "contextTokens": null,
+  "capabilities": []
+}

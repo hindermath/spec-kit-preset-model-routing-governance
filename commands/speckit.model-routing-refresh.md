@@ -1,18 +1,17 @@
 ---
-description: Refresh the local harness model-to-role binding
+description: Persist one explicitly approved local schema-3 routing configuration
 ---
 
-# Model Routing Refresh
+# Lokaler Refresh / Local refresh
 
-Refresh exactly one local, non-versioned model-routing profile under current
-explicit authority. Resolve the script from the repository's top-level
-`scripts` directory first and
-otherwise from `.specify/presets/model-routing-governance/scripts/`. Detect the
-active harness, enumerate models where the
-harness supports it, and otherwise validate only configured candidates.
+DE: Nur mit aktueller ausdruecklicher Freigabe genau eine lokale, nicht
+versionierte Konfiguration aktualisieren. Harness, Anforderungen und
+InputConfig benennen; zuerst Preview und Refresh -WhatIf pruefen. Schreiben
+erfordert -ApproveLocalRefresh. Keine automatische Migration, keine
+Namensheuristik und keine Inferenz. Quellen-/Eignungsnachweise und lokale
+Policy muessen gueltig sein. Kein Providerwechsel oder Delivery-Auftrag.
 
-Automatically accept only a known, unique mapping whose model and reasoning
-effort pass the adapter checks. Unknown, ambiguous, unavailable, or
-cross-provider mappings must fail closed with a proposal. Never write
-credentials, machine identifiers, private paths, or repository files. Do not
-start Spec Kit, autonomous delivery, commits, pushes, pull requests, or merges.
+EN: Refresh exactly one local untracked config only with explicit authority.
+Require explicit harness, requirements and InputConfig; inspect Preview and
+Refresh -WhatIf first. Writing requires ApproveLocalRefresh. Never silently
+migrate, infer, switch providers or grant delivery authority.

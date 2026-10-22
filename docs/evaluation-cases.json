@@ -1,0 +1,99 @@
+{
+  "schemaVersion": "1.0",
+  "purpose": "Repeatable evaluation design, not model performance evidence",
+  "inferenceApproved": false,
+  "gradingOrder": [
+    "correctness",
+    "missedFindings",
+    "humanRework",
+    "wallTime",
+    "reportedUsage"
+  ],
+  "cases": [
+    {
+      "id": "status",
+      "projectType": "script-infrastructure",
+      "task": "Summarize a fixed successful/failed/pending check inventory without changing files",
+      "role": "fast-mechanical",
+      "complexity": "simple",
+      "risk": "low",
+      "acceptance": [
+        "all three states correctly distinguished",
+        "no delivery authority inferred",
+        "zero writes"
+      ],
+      "input": "{\"checks\":[{\"name\":\"build\",\"state\":\"success\"},{\"name\":\"test\",\"state\":\"failure\"},{\"name\":\"review\",\"state\":\"pending\"}],\"deliveryAuthorized\":false}"
+    },
+    {
+      "id": "documentation",
+      "projectType": "bilingual-governance",
+      "task": "Repair a broken local README link in a frozen fixture while preserving DE/EN parity",
+      "role": "long-running-implementation",
+      "complexity": "simple",
+      "risk": "low",
+      "acceptance": [
+        "only intended links changed",
+        "anchors exist",
+        "no new behavior claimed"
+      ],
+      "input": "# Einstieg / Getting started\n\n[Deutsch](docs/start.md#einrichten)\n[English](docs/start.EN.md#setup-missing)\n\n<!-- Existing anchors: docs/start.md#einrichten; docs/start.EN.md#setup -->\n"
+    },
+    {
+      "id": "implementation",
+      "projectType": "dotnet-training",
+      "task": "Implement cancellation propagation in a frozen small worker fixture with existing tests",
+      "role": "long-running-implementation",
+      "complexity": "normal",
+      "risk": "normal",
+      "acceptance": [
+        "new cancellation test passes",
+        "existing tests unchanged and pass",
+        "no unrelated API changes"
+      ],
+      "input": "public static async Task<int> RunAsync(Func<CancellationToken, Task<int>> work, CancellationToken ct) { return await work(CancellationToken.None); }\n// Existing test: a non-cancelled work item returns 42.\n// Add a cancelled-token propagation test; preserve the signature and existing test.\n"
+    },
+    {
+      "id": "diagnosis",
+      "projectType": "terminal-testing",
+      "task": "Diagnose a frozen PTY readiness race and propose a bounded deterministic fix",
+      "role": "frontier-reasoning",
+      "complexity": "challenging",
+      "risk": "normal",
+      "acceptance": [
+        "cause tied to trace evidence",
+        "timeouts not increased to hide race",
+        "original test oracle retained"
+      ],
+      "input": "{\"outerTimeoutSeconds\":25,\"trace\":[{\"tMs\":0,\"event\":\"spawn\"},{\"tMs\":40,\"event\":\"send-key\"},{\"tMs\":90,\"event\":\"input-ready\"},{\"tMs\":25000,\"event\":\"timeout\"}],\"constraint\":\"Do not increase timeout or remove oracle; require bounded readiness before key delivery.\"}"
+    },
+    {
+      "id": "security-review",
+      "projectType": "powershell-governance",
+      "task": "Review a fixed input-path and subprocess patch containing seeded traversal and argument-injection defects",
+      "role": "coding-review",
+      "complexity": "challenging",
+      "risk": "high",
+      "acceptance": [
+        "both seeded defects found",
+        "source/sink and impact explained",
+        "false positives recorded"
+      ],
+      "input": "param([string]$Root,[string]$Relative,[string]$UserArg)\n$target = Join-Path $Root $Relative\nGet-Content $target\nbash -c \"tool $UserArg\"\n"
+    },
+    {
+      "id": "architecture",
+      "projectType": "container-training",
+      "task": "Review a frozen provider/account trust-boundary design without changing runtime configuration",
+      "role": "frontier-reasoning",
+      "complexity": "challenging",
+      "risk": "high",
+      "acceptance": [
+        "trust boundaries explicit",
+        "unknown applicability remains Open",
+        "no production or certification acceptance inferred"
+      ],
+      "input": "{\"purpose\":\"training\",\"agent\":\"local CLI\",\"providers\":[\"approved-provider\"],\"accountSelection\":\"implicit-default\",\"fallback\":\"any-available-provider\",\"acceptance\":{\"product\":\"Open\",\"conformity\":\"Open\"},\"question\":\"Identify trust and authority violations without modifying provider configuration.\"}"
+    }
+  ],
+  "executionRule": "Freeze input payloads and hashes before comparison; run the same payload per approved harness/model/effort; missing usage stays unknown, never estimated as measured. Instructor/owner grades quality independently."
+}

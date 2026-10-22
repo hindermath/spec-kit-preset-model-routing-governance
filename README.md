@@ -1,5 +1,18 @@
 # Model Routing Governance
 
+## Unveroeffentlicht / Unreleased
+
+Der Quellbranch entwickelt Schema 3.0 mit expliziter Phasenanforderung und
+lokaler Eignungs-Evidence. Keine Default-/Modellfamilien-Heuristik; keine
+stille Migration. Einstieg: [dynamisches Routing](docs/dynamic-routing.md).
+Die folgenden Release-Angaben beschreiben weiterhin das unveraenderte Paket
+v0.1.5, nicht eine bereits ausgelieferte neue Funktion.
+
+The source branch develops schema 3.0, explicit phase requirements and local
+suitability evidence. No default/name heuristic or silent migration. Read the
+[bilingual guide](docs/dynamic-routing.md). Release descriptions below refer
+to the unchanged v0.1.5 package, not an already delivered new feature.
+
 Patch **0.1.5** liefert die verbesserte zweisprachige Einstiegs- und
 Kompositionsdokumentation. Verhalten und Berechtigungsgrenzen bleiben erhalten.
 [Release-Nachweis / Release record](docs/release-0.1.5-validation.md).

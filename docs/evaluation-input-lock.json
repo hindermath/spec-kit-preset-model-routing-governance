@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "1.0",
+  "hashEncoding": "SHA-256 of the exact UTF-8 input string, no normalization",
+  "inputs": [
+    {"id":"status","inputSha256":"586f0abcefe06261ca82980730a20fc900073cde8408a154e3cac0af02a51130"},
+    {"id":"documentation","inputSha256":"58822a6acfc83af502915357d645a5615db9abb40f7ea37f34eee19117c0b425"},
+    {"id":"implementation","inputSha256":"3e69497e482a0cb9f1ebe6ecbc89f2bb21406a883046a911c528eb3391486cad"},
+    {"id":"diagnosis","inputSha256":"e06e4cb49c02cfdb0b62cf0e7d2309cd8316f51180f68ffddb497ae83b7bd0ea"},
+    {"id":"security-review","inputSha256":"683f62cea703d4c499b49b54daecf818cee09639cff7906498872b0f7929aedd"},
+    {"id":"architecture","inputSha256":"bc9a86a81a44cc902574dc8cf27a4d3e026d2aae32386317007d5b3973801c10"}
+  ]
+}

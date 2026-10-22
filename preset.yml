@@ -15,6 +15,16 @@ requires:
 provides:
   templates:
     - type: "template"
+      name: "model-routing-phase-requirements-template"
+      file: "templates/model-routing-phase-requirements-template.json"
+      description: "Explicit versioned phase role, complexity, risk, context and capabilities"
+
+    - type: "command"
+      name: "speckit.model-routing-preview"
+      file: "commands/speckit.model-routing-preview.md"
+      description: "Read-only deterministic per-phase model selection without inference"
+
+    - type: "template"
       name: "model-routing-governance-model-routing"
       file: "model-routing.json"
       description: "Command-to-role declarations for model-routing operations"
