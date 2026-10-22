@@ -10,7 +10,8 @@ Offline findings: [#7](https://github.com/hindermath/spec-kit-preset-model-routi
 
 ## Validation and limitations
 
-- Local Bash and PowerShell: same 69 deterministic assertions, not 138 cases.
+- Expanded local/native suite: seventy deterministic assertions, including
+  Claude permission mode, single-element argument vectors and CRLF output.
 - Fourteen preset sources / fifty commands covered, strongest role retained.
 - Installed CLI help surfaces checked without inference; this found and fixed
   Claude permission-mode and single-element argument-vector defects.
@@ -18,6 +19,8 @@ Offline findings: [#7](https://github.com/hindermath/spec-kit-preset-model-routi
   Draft PR: do not promote to operational deployment from green fixtures alone.
 - No inference, release, installation, local profile migration or Home sync.
 - Native macOS/Linux/Windows CI results must be reviewed at this exact head.
+  Previous exact-head run 39743006078 passed all three platforms; the first
+  Windows failure and its CRLF correction are retained in native verification.
 
 ## Documentation Impact
 
