@@ -143,6 +143,9 @@ try {
     # PowerShell startup. The independent negative timeout remains one second.
     $probe=Invoke-MRBoundedProcess $probeProfile @{} $temporary -TimeoutSeconds 120
     Assert-Test ($probe.exitCode -eq 0 -and $probe.output -contains 'fixture-only') 'bounded subprocess argument-vector path'
+    $probeProfile.arguments=@('-NoProfile','-Command','[Console]::Write("fixture-crlf`r`nsecond`r`n")')
+    $probe=Invoke-MRBoundedProcess $probeProfile @{} $temporary -TimeoutSeconds 120
+    Assert-Test ($probe.exitCode -eq 0 -and $probe.output -contains 'fixture-crlf' -and $probe.output -contains 'second') 'native CRLF output preserves exact logical records'
     $probeProfile.arguments=@('--version')
     $probe=Invoke-MRBoundedProcess $probeProfile @{} $temporary -TimeoutSeconds 120
     Assert-Test ($probe.exitCode -eq 0 -and ($probe.output -join ' ') -match '^PowerShell ') 'single-argument metadata vector preserved'

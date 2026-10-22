@@ -351,7 +351,9 @@ function Invoke-MRBoundedProcess {
             $process.Kill($true); [void]$process.WaitForExit(2000)
             return @{exitCode=124;output=@();reason='Bounded process timed out; no retry.'}
         }
-        return @{exitCode=$process.ExitCode;output=@($stdout.GetAwaiter().GetResult() -split "`n");diagnostics=$stderr.GetAwaiter().GetResult()}
+        # Native Windows stdout uses CRLF. Remove only the line delimiter,
+        # not whitespace inside a native JSON record or model response.
+        return @{exitCode=$process.ExitCode;output=@($stdout.GetAwaiter().GetResult() -split '\r?\n');diagnostics=$stderr.GetAwaiter().GetResult()}
     } finally {
         if ($started -and -not $process.HasExited) { $process.Kill($true) }
         $process.Dispose()

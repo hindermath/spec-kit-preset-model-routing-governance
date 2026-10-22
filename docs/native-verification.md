@@ -19,6 +19,11 @@ fehl: der Child-Runner entpackte ein JSON-Array mit einem Element wie
 `["--version"]` zu einem Skalar. `ConvertFrom-Json -NoEnumerate` erhaelt jetzt
 den Argumentvektor; eine eigene Regression prueft den Einzelargumentfall.
 
+Der erste native Windows-CI-Lauf scheiterte am exakten Subprozess-Ausgabetest.
+Der Runner trennte nur LF und behielt CR aus CRLF im Record. Er entfernt jetzt
+nur den Zeilentrenner; eine explizite CRLF-Fixture erhaelt die strenge exakte
+Record-Pruefung. Der erste rote Lauf bleibt als Fehlernachweis erhalten.
+
 Native Modell-/Effort-/No-Fallback-Receipts sind fuer keinen der fuenf Adapter
 belegt. Das synthetische Feld `fallbackOccurred` ist keine zugesicherte
 Herstellerfunktion. Fehlende Metadaten blockieren weiterhin. Eine Protokoll-
@@ -46,6 +51,11 @@ denied. Effective MCP, hook, agent and settings precedence is not live verified.
 The first installed-CLI audit failed for all five before launching the CLIs:
 single-element JSON arrays such as `["--version"]` were unwrapped into scalars.
 `ConvertFrom-Json -NoEnumerate` now preserves them, with a dedicated regression.
+
+The first native Windows CI failed the exact subprocess output assertion:
+splitting only LF retained a CR in each CRLF record. The runner now removes
+only the line delimiter, covered by an explicit CRLF fixture with exact record
+assertions. The original failed run remains part of the evidence.
 
 Native model, effort and no-fallback receipts remain unverified for all five
 adapters. The synthetic `fallbackOccurred` field is not a promised vendor
