@@ -1,0 +1,12 @@
+{
+  "id": "model-routing-governance",
+  "version": "0.1.6",
+  "priority": 61,
+  "readers": [
+    "docs/user-guide.md",
+    "docs/user-guide.EN.md",
+    "docs/documentation-closeout.md"
+  ],
+  "sourceBaseCommit": "accae165176dc948b95a22fb68650c7db62c4079",
+  "preserveHistoricalEvidence": true
+}
