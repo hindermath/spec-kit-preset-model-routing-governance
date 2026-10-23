@@ -7,8 +7,19 @@
 - Use `Enumerate`, `EnumerateNames`, `ValidateCandidate`, or `ConfiguredOnly`
   according to the adapter's proven capability. Do not claim enumeration where
   the harness offers only candidate validation.
-- Automatically refresh only known and unique mappings after a successful
-  read-only preflight. Unknown or ambiguous mappings are `Blocked`.
+- Refresh only known, unique mappings after the stable resolver's metadata
+  checks and explicit local authority. Refresh does not run the rendered
+  model-access preflight. That later execution can consume quota and needs its
+  applicable run authority. Unknown or ambiguous mappings remain blocked.
+- The stable resolver renders automatic profiles only for Codex and
+  Antigravity; policy labels for Claude, Copilot and OpenCode are not implemented
+  candidate-validation/profile renderers. Report limits without provider switching.
+
+DE: Refresh bindet nur eindeutige Metadaten unter lokaler Änderungsautorität.
+Eine Modellzugangs-Probe wird dabei nicht ausgeführt. Ein späterer
+Runner-Preflight kann Kontingent verbrauchen. Automatische Profile gibt es im
+stabilen Resolver nur für Codex und Antigravity; andere Policy-Bezeichnungen
+sind keine implementierten Adapter. Keine stille Ersatzwahl.
 - `script-only` never starts a model process. Model routing grants no delivery,
   remote, secret, provider, bypass, or administrator authority.
 
