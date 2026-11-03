@@ -89,6 +89,14 @@ try {
         $digest = (Get-FileHash $config).Hash
         $status = Invoke-TestResolver $resolver $family Status $fixture $config
         Assert-Adapter ($status.code -eq 0 -and (Get-FileHash $config).Hash -ceq $digest) "$family aligned status mutated profile."
+        if ($family -eq 'Claude') {
+            $extended = $inventory | ConvertTo-Json -Depth 30 | ConvertFrom-Json -AsHashtable
+            $variant = $extended.models[0].Clone(); $variant.value = 'opus[1m]'
+            $extended.models += $variant
+            $variantFixture = Write-TestFixture $extended
+            $coexist = Invoke-TestResolver $resolver $family Status $variantFixture $config
+            Assert-Adapter ($coexist.code -eq 0 -and (Get-FileHash $config).Hash -ceq $digest) 'Claude extended-context inventory blocked base aliases or changed profile.'
+        }
         foreach ($negative in @('duplicate','ambiguousVersions','empty','unknown','missingEffort','missingFastMetadata','invalidId','policyDisabled','policyUnknown','policyUnconfigured')) {
             $copy = $inventory | ConvertTo-Json -Depth 30 | ConvertFrom-Json -AsHashtable
             switch ($negative) {

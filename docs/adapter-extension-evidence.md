@@ -29,7 +29,7 @@ because the existing linear status/refresh flow remains unchanged.
 ## Prüfung / Verification
 
 DE: Lokal am 2026-11-03 unter macOS mit PowerShell 7.6.9 und Node.js 26.13.0
-bestanden: Bash-Syntax und bestehender Discovery-Test, 80 neue Adapter-/Legacy-
+bestanden: Bash-Syntax und bestehender Discovery-Test, 81 neue Adapter-/Legacy-
 Assertions, 92 Dokumentations- und 64 Release-/Historien-Assertions sowie alle
 7 Node-SDK-/Transporttests. PSScriptAnalyzer 1.25.0 meldet für das neue
 Adaptermodul keine Warnungen/Fehler. `git diff --check` und Gitleaks sind grün.
@@ -37,7 +37,7 @@ Die HTTP-Fixture benötigt eine lokale Listen-Berechtigung; dafür wurde nur der
 Testlauf mit Loopback-Server außerhalb der eingeschränkten Sandbox ausgeführt.
 
 EN: Local checks passed on macOS on 2026-11-03 with PowerShell 7.6.9 and
-Node.js 26.13.0: Bash syntax and existing discovery test, 80 new adapter/legacy
+Node.js 26.13.0: Bash syntax and existing discovery test, 81 new adapter/legacy
 assertions, 92 documentation and 64 release/history assertions, all 7 Node
 SDK/transport tests. PSScriptAnalyzer 1.25.0 reports no warnings/errors for the
 new adapter module. `git diff --check` and Gitleaks pass. The HTTP fixture needs

@@ -62,6 +62,7 @@ number alone never selects a model.
 
 - Claude prefers returned `opus`/`haiku` aliases. Without an alias, exactly one
   matching full identifier must exist.
+  Additional `[1m]` entries are inventoried but never selected implicitly.
 - Copilot requires explicit `policy.state=enabled`. Missing, unknown,
   unconfigured or disabled policy excludes a candidate.
 - OpenCode uses only the selected connected provider. Model IDs remain
@@ -101,6 +102,7 @@ isolation.
 
 - [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/typescript)
 - [Claude CLI](https://code.claude.com/docs/en/cli-reference)
+- [Claude model identifiers](https://code.claude.com/docs/en/model-config)
 - [Copilot SDK](https://docs.github.com/en/copilot/how-tos/copilot-sdk/troubleshooting/compatibility)
 - [Copilot CLI](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference)
 - [OpenCode Server](https://opencode.ai/docs/server/)

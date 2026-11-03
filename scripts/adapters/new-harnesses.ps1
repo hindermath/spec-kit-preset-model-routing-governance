@@ -135,7 +135,9 @@ function ConvertTo-MRDiscoveredModel {
                 elseif ($item.variants -is [hashtable]) { $efforts = @($item.variants.Keys) }
             }
         }
-        Assert-MRCondition ($id -cmatch '^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,199}$') 'Invalid model identifier.'
+        # Documented extended-context entries may coexist with the base aliases.
+        # Inventory them without making them an implicit selection or shell syntax.
+        Assert-MRCondition ($id -cmatch '^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,199}(?:\[1m\])?$') 'Invalid model identifier.'
         Assert-MRCondition (-not $seen.ContainsKey($id)) 'Duplicate model identifier; discovery is ambiguous.'
         $seen[$id] = $true
         $accepted = @($efforts | Where-Object { $_ -is [string] -and $_ -cin @('low','medium','high','xhigh','max') } | Sort-Object -Unique)

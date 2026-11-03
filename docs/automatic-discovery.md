@@ -66,6 +66,7 @@ Versionsnummer ausgewählt.
 
 - Claude bevorzugt die gelieferten Aliase `opus` und `haiku`; fehlen sie,
   muss genau eine passende vollständige Kennung vorhanden sein.
+  Zusätzliche `[1m]`-Einträge werden erkannt, aber nicht automatisch gewählt.
 - Copilot benötigt ausdrücklich `policy.state=enabled`. Fehlende, unbekannte,
   unkonfigurierte oder deaktivierte Policy blockiert den Kandidaten.
 - OpenCode berücksichtigt nur den benannten verbundenen Provider. Die
@@ -106,6 +107,7 @@ nicht aus und installiert keine Isolation.
 
 - [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/typescript)
 - [Claude CLI](https://code.claude.com/docs/en/cli-reference)
+- [Claude-Modellkennungen](https://code.claude.com/docs/en/model-config)
 - [Copilot SDK](https://docs.github.com/en/copilot/how-tos/copilot-sdk/troubleshooting/compatibility)
 - [Copilot CLI](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference)
 - [OpenCode Server](https://opencode.ai/docs/server/)
