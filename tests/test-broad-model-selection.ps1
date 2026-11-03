@@ -124,15 +124,15 @@ try {
             }
         }
         $reply = Invoke-SelectionTest $family @((New-TestModel 'gpt-99'))
-        $profile = Get-Content $config -Raw | ConvertFrom-Json -AsHashtable
-        Assert-Selection ($profile.selectionPolicySha256 -cmatch '^[a-f0-9]{64}$') "$family missing selection policy binding."
-        $profile.selectionPolicySha256 = 'stale'
-        $profile | ConvertTo-Json -Depth 30 | Set-Content $config
+        $profileData = Get-Content $config -Raw | ConvertFrom-Json -AsHashtable
+        Assert-Selection ($profileData.selectionPolicySha256 -cmatch '^[a-f0-9]{64}$') "$family missing selection policy binding."
+        $profileData.selectionPolicySha256 = 'stale'
+        $profileData | ConvertTo-Json -Depth 30 | Set-Content $config
         $digest = (Get-FileHash $config).Hash
         $reply = Invoke-SelectionTest $family @((New-TestModel 'gpt-99')) '' '' 'Status'
         Assert-Selection ($reply.code -eq 2 -and (Get-FileHash $config).Hash -ceq $digest) "$family policy drift not detected read-only."
-        $profile.Remove('selectionPolicySha256')
-        $profile | ConvertTo-Json -Depth 30 | Set-Content $config
+        $profileData.Remove('selectionPolicySha256')
+        $profileData | ConvertTo-Json -Depth 30 | Set-Content $config
         $digest = (Get-FileHash $config).Hash
         $reply = Invoke-SelectionTest $family @((New-TestModel 'gpt-99')) '' '' 'Status'
         Assert-Selection ($reply.code -eq 2 -and (Get-FileHash $config).Hash -ceq $digest) "$family older profile needs explicit policy refresh."

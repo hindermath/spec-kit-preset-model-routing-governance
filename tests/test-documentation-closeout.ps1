@@ -116,7 +116,7 @@ foreach ($command in $catalog.commands.Keys) {
     }
 }
 $ownCount = Assert-DocRoutingCoverage $root
-if ($id -ceq 'model-routing-governance' -and $version -ceq '0.2.0') {
+if ($id -ceq 'model-routing-governance' -and $version -in @('0.2.0','0.2.1')) {
     foreach ($name in @('docs/automatic-discovery.md','docs/automatic-discovery.EN.md')) {
         $adapterGuide = [IO.File]::ReadAllText((Join-Path $root $name))
         foreach ($contract in @('-SdkModulePath','-OpenCodeServerUrl','-OpenCodeProvider','-FrontierModel','-FastModel','selectionPolicySha256','GPT','Gemini','supportedModels()','listModels()','GET /provider','25','4 MiB','default','CEFR B2','WCAG 2.2 AA')) {
