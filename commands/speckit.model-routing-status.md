@@ -17,6 +17,15 @@ or its Bash wrapper. Run `-Action Status`. Report `Aligned`, `RefreshRequired`,
 `NeedsClarification`, or `Blocked`, followed by a text-first reason and exact
 next action.
 
+DE: Bei mehreren gleichrangigen Modellen nennt der Status Kandidaten-IDs.
+`-FrontierModel`/`-FastModel` wählen exakte gemeldete IDs für die neuen Adapter,
+ohne Fähigkeits-/Policy-Prüfungen zu umgehen. Ohne eigenes schnelles Modell
+darf das gewählte Frontier-Modell mehrere Rollen übernehmen.
+
+EN: Ambiguous tiers report candidate IDs. `-FrontierModel`/`-FastModel` select
+exact discovered IDs for new adapters without bypassing capability/policy
+checks. The frontier model may serve several roles if no fast model is selected.
+
 DE: Für Claude/Copilot den ausdrücklich benannten vorhandenen SDK-Einstieg
 mit `-SdkModulePath` verwenden. OpenCode benötigt `-OpenCodeServerUrl` und
 `-OpenCodeProvider`; keinen Server starten. Keine Abhängigkeiten installieren.

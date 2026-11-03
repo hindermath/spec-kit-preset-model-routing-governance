@@ -10,7 +10,8 @@ README → Nutzungsleitfaden → Adapterleitfaden → Quellen/Prüfgrenzen.
 Zielgruppe: alle vier IHK-IT-Berufe, alle Fachinformatik-Fachrichtungen und
 Entwickelnde ohne Spezialwissen. Dokumentklasse: technische Bedienung und
 Entwicklungsevidence; Deutsch zuerst, gleichwertiges Englisch, CEFR B2 und
-anwendbare WCAG 2.2 AA. Distribution: nur Preset-Quellkandidat. Kein Home-Sync,
+anwendbare WCAG 2.2 AA. Distribution: Preset-Quellkandidat mit beauftragtem
+MergeAndSync/Admin-Bypass erst nach grünen exakten Head-Checks. Kein Home-Sync,
 keine Verbraucherinstallation. Re-Evaluation bei Quell-, SDK-/CLI-, Policy-
 oder API-Drift und vor Veröffentlichung. Kein Ablaufdiagramm erforderlich:
 der bestehende lineare Status-/Refresh-Ablauf bleibt unverändert.
@@ -21,24 +22,27 @@ addendum, policy starter, manpage and package preparation. Reader path: README �
 user guide → adapter guide → sources/verification limits. Audience includes all
 four IHK IT occupations, every IT-specialist track and non-specialist developers.
 Technical operating documentation and development evidence; German first,
-equivalent English, B2 and applicable WCAG 2.2 AA. Distribution is source
-candidate only. No Home sync or consumer installation. Re-evaluate on source,
+equivalent English, B2 and applicable WCAG 2.2 AA. Source candidate delivery
+uses authorized MergeAndSync/admin bypass only after exact-head green checks.
+No Home sync or consumer installation. Re-evaluate on source,
 SDK/CLI, policy or API drift and before publication. No flow diagram is needed
 because the existing linear status/refresh flow remains unchanged.
 
 ## Prüfung / Verification
 
 DE: Lokal am 2026-11-03 unter macOS mit PowerShell 7.6.9 und Node.js 26.13.0
-bestanden: Bash-Syntax und bestehender Discovery-Test, 81 neue Adapter-/Legacy-
-Assertions, 92 Dokumentations- und 64 Release-/Historien-Assertions sowie alle
+bestanden: Bash-Syntax und bestehender Discovery-Test, 75 neue Adapter-/Legacy-
+Assertions, 119 Prüfungen zur breiten Auswahl, 102 Dokumentations- und
+64 Release-/Historien-Assertions sowie alle
 7 Node-SDK-/Transporttests. PSScriptAnalyzer 1.25.0 meldet für das neue
 Adaptermodul keine Warnungen/Fehler. `git diff --check` und Gitleaks sind grün.
 Die HTTP-Fixture benötigt eine lokale Listen-Berechtigung; dafür wurde nur der
 Testlauf mit Loopback-Server außerhalb der eingeschränkten Sandbox ausgeführt.
 
 EN: Local checks passed on macOS on 2026-11-03 with PowerShell 7.6.9 and
-Node.js 26.13.0: Bash syntax and existing discovery test, 81 new adapter/legacy
-assertions, 92 documentation and 64 release/history assertions, all 7 Node
+Node.js 26.13.0: Bash syntax and existing discovery test, 75 new adapter/legacy
+assertions, 119 broad-selection assertions, 102 documentation and
+64 release/history assertions, all 7 Node
 SDK/transport tests. PSScriptAnalyzer 1.25.0 reports no warnings/errors for the
 new adapter module. `git diff --check` and Gitleaks pass. The HTTP fixture needs
 local listen permission; only the loopback test run used execution outside the
@@ -68,6 +72,7 @@ and suppressed vendor errors.
 ```text
 bash tests/test-model-routing-discovery.sh
 pwsh -NoProfile -File tests/test-additive-adapters.ps1
+pwsh -NoProfile -File tests/test-broad-model-selection.ps1
 node --test tests/test-sdk-bridge.mjs tests/test-adapter-transports.mjs
 pwsh -NoProfile -File tests/test-documentation-closeout.ps1
 pwsh -NoProfile -File tests/test-release-status.ps1
@@ -84,6 +89,25 @@ Live authentication, actual SDK/CLI combinations, quota, model access,
 subsequent runner execution, screen-reader/Braille and full AA acceptance remain
 open without separate evidence. Fixtures establish the adapter contract, not
 real-account availability. Tests install no SDKs.
+
+DE: Der Folgeauftrag erweitert die Auswahl auf GPT, o-Serie, Gemini, Sonnet und
+sonstige geeignete Modelle. Präferenzstufen sind keine Qualitätsrangliste.
+Fähigkeiten werden vor Präferenzen gefiltert; exakte IDs lösen Mehrdeutigkeit,
+ohne Copilot-Policy oder Providerbindung zu umgehen. Ein Modell darf mehrere
+Rollen übernehmen; fehlendes Haiku blockiert nicht. Neue Tests prüfen diese
+Fälle, Listenreihenfolge, hohe Effort-Stufen ohne erfundene Absenkung,
+ausgeschlossene Switching-Aliase und den Hash der Auswahlpolicy. Die frühere
+Negativannahme „unbekannte Familie immer blockieren“ wurde durch den stärkeren
+Vertrag „nur geeignete gemeldete IDs; Mehrdeutigkeit blockiert“ ersetzt.
+
+EN: The follow-up extends selection to GPT, o-series, Gemini, Sonnet and other
+capable models. Preference tiers are not quality rankings. Capability filtering
+precedes preferences; exact IDs resolve ambiguity without bypassing Copilot
+policy or provider binding. One model may serve several roles; missing Haiku
+does not block. Tests cover these cases, inventory order, high effort without
+invented reductions, excluded switching aliases and policy-hash binding. The
+earlier negative assumption "unknown family always blocks" is replaced with
+"eligible discovered IDs only; ambiguity blocks".
 
 ## Sicherheitsprüfung / Security review
 

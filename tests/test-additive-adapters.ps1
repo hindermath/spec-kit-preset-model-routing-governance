@@ -97,7 +97,7 @@ try {
             $coexist = Invoke-TestResolver $resolver $family Status $variantFixture $config
             Assert-Adapter ($coexist.code -eq 0 -and (Get-FileHash $config).Hash -ceq $digest) 'Claude extended-context inventory blocked base aliases or changed profile.'
         }
-        foreach ($negative in @('duplicate','ambiguousVersions','empty','unknown','missingEffort','missingFastMetadata','invalidId','policyDisabled','policyUnknown','policyUnconfigured')) {
+        foreach ($negative in @('duplicate','ambiguousVersions','empty','unknownAmbiguous','missingEffort','invalidId','policyDisabled','policyUnknown','policyUnconfigured')) {
             $copy = $inventory | ConvertTo-Json -Depth 30 | ConvertFrom-Json -AsHashtable
             switch ($negative) {
                 duplicate { $copy.models += $copy.models[0].Clone() }
@@ -108,9 +108,12 @@ try {
                     $copy.models += $other
                 }
                 empty { $copy.models = @() }
-                unknown { $copy.models[0].value='unknown'; $copy.models[0].id='unknown' }
+                unknownAmbiguous {
+                    $copy.models[0].value='unknown'; $copy.models[0].id='unknown'
+                    $other = $copy.models[0].Clone(); $other.value='other'; $other.id='other'
+                    $copy.models += $other
+                }
                 missingEffort { $copy.models[0].supportsEffort=$null; $copy.models[0].capabilities=@{} }
-                missingFastMetadata { $copy.models[1].supportsEffort=$null; $copy.models[1].capabilities=@{} }
                 invalidId { $copy.models[0].value='--unsafe'; $copy.models[0].id='--unsafe' }
                 policyDisabled { if ($family -ne 'Copilot') { continue }; $copy.models[0].policy.state='disabled' }
                 policyUnknown { if ($family -ne 'Copilot') { continue }; $copy.models[0].Remove('policy') }

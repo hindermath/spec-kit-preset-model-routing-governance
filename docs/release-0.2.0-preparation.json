@@ -7,7 +7,7 @@
   "release_status": "NotEstablishedAtPreparation",
   "runtimeChanged": true,
   "changeKind": "AdditiveAdapters",
-  "authorizationReference": "User request 2026-11-03: implement adapters and prepare PR; no merge, release, installation or rollout.",
+  "authorizationReference": "User requests 2026-11-03: initial adapter PR, then broad-selection improvement with DeliveryMode MergeAndSync and admin bypass after exact-head green checks. No release, preset installation or rollout.",
   "generatorSchemaChanged": false,
   "preparedAt": "2026-11-03T19:38:19+01:00",
   "sourceCommit": "b35ee208959ec133e51ad557820a393b9bdddbf4",

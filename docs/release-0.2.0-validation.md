@@ -23,7 +23,11 @@ explicit refresh authority remain unchanged. Historical publication evidence
 applies only to its earlier package. Historical tags, archives and evidence are
 preserved.
 
-DE: Merge, Release, Installation und Rollout benötigen spätere Aufträge. Die
-geplante Release-URL im JSON ist ein Ziel für künftige Evidence, kein Beleg.
-EN: Merge, release, installation and rollout require later instructions. The
-planned release URL in JSON is a future evidence target, not proof.
+DE: Der aktuelle Auftrag umfasst Verbesserung und MergeAndSync mit Admin-Bypass
+nach grünen technischen Checks am exakten Head. Release, Installation und
+Rollout bleiben getrennte spätere Aufträge. Die geplante Release-URL im JSON
+ist ein Ziel für künftige Evidence, kein Beleg.
+EN: Current authority covers improvement and MergeAndSync with admin bypass
+after green technical checks at the exact head. Release, installation and
+rollout require separate later instructions. The planned release URL in JSON
+is a future evidence target, not proof.

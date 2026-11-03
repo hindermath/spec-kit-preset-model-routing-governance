@@ -145,8 +145,16 @@ Fehlende Voraussetzungen blockieren; kein automatischer Anbieterwechsel.
 adapters use Enumerate with documented prerequisites. Missing prerequisites
 block discovery without a provider switch.*
 
-Unbekannte oder mehrdeutige Zuordnungen blockieren. Es gibt keinen stillen
-Fallback und keinen automatischen Anbieterwechsel.
+Die neuen Adapter verwenden Fähigkeitsfilter und deklarierte Präferenzstufen
+für Claude-, GPT-, o-Serien- und Gemini-Modelle. Sonstige geeignete Modelle
+können eindeutig oder über `-FrontierModel`/`-FastModel` gewählt werden.
+Mehrdeutige Stufen und fehlende Fähigkeiten blockieren. Ein Modell darf mehrere
+Rollen übernehmen. Keine stille Ersatzwahl bei Fehlern und kein Anbieterwechsel.
+
+*New adapters use capability filters and declared preference tiers for Claude,
+GPT, o-series and Gemini. Other capable models can be selected uniquely or with
+exact model parameters. Ambiguous tiers and missing capabilities block. One
+model may serve multiple roles. No silent error fallback or provider switch.*
 
 ### Aufrufe
 
@@ -182,8 +190,9 @@ Authoring (`64`).
 The remote repository never stores personal model availability. Only roles,
 adapters, and selection rules are versioned. Concrete bindings remain local.
 Structured enumeration, name-only enumeration, candidate validation, and
-configured-only adapters are reported honestly. Unknown or ambiguous mappings
-fail closed, and no provider switch happens silently.
+configured-only adapters are reported honestly. Missing capabilities and
+ambiguous mappings fail closed. New adapters support broad role selection;
+Codex and Antigravity remain unchanged. No provider switch happens silently.
 
 The second command in the invocation block refreshes, for example, a local
 Codex binding only after explicit authorization.

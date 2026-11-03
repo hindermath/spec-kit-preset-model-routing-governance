@@ -37,6 +37,17 @@ runner preflight can consume quota and needs applicable execution authority.
 
 ## ENDESTATUS / EXIT STATUS
 
+DE: Neue Adapter verwenden Fähigkeitsfilter und breite Modellpräferenzen.
+`-FrontierModel` und `-FastModel` lösen Mehrdeutigkeit mit exakten Discovery-IDs.
+Haiku ist keine Voraussetzung; Frontier darf mehrere Rollen übernehmen.
+Ein neuer Profil-Hash `selectionPolicySha256` erkennt Auswahlpolicy-Drift.
+Codex/agy-Regeln bleiben unverändert.
+
+EN: New adapters use capability filters and broad model preferences.
+`-FrontierModel` and `-FastModel` resolve ambiguity with exact discovered IDs.
+Haiku is not required; frontier may serve multiple roles. New profile metadata
+`selectionPolicySha256` detects selection-policy drift. Codex/agy are unchanged.
+
 - `0`: ausgerichtet oder erfolgreich aktualisiert / aligned or refreshed successfully
 - `2`: Aktualisierung oder Klärung erforderlich / refresh required or needs clarification
 - `3`: durch fehlende Harness-, Discovery-, Modell- oder Reasoning-Evidence blockiert / blocked by missing harness, discovery, model, or reasoning evidence

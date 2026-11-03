@@ -53,7 +53,8 @@ function Invoke-MRSdkDiscovery {
         $text = $stdout.GetAwaiter().GetResult()
         $null = $stderr.GetAwaiter().GetResult()
         Assert-MRCondition ($process.ExitCode -eq 0 -and $text.Length -le 4MB) 'SDK discovery failed; check SDK/CLI compatibility and authentication.'
-        return $text | ConvertFrom-Json -AsHashtable -Depth 50
+        try { return $text | ConvertFrom-Json -AsHashtable -Depth 50 }
+        catch { throw 'SDK metadata JSON invalid; vendor output suppressed.' }
     } finally { $process.Dispose() }
 }
 
@@ -116,28 +117,37 @@ function ConvertTo-MRDiscoveredModel {
         $defaultOnly = $false
         if ($Family -eq 'Claude') {
             $id = [string] $item.value
-            if ($item.supportsEffort -is [bool] -and $item.supportsEffort) { $efforts = @($item.supportedEffortLevels) }
-            elseif ($item.supportsEffort -is [bool] -and -not $item.supportsEffort) { $defaultOnly = $true }
+            if ($item.ContainsKey('supportsEffort') -and $item.supportsEffort -is [bool]) {
+                if ($item.supportsEffort -and $item.ContainsKey('supportedEffortLevels')) { $efforts = @($item.supportedEffortLevels) }
+                elseif (-not $item.supportsEffort) { $defaultOnly = $true }
+            }
         } elseif ($Family -eq 'Copilot') {
             $id = [string] $item.id
             # Unknown policy is not permission. Do not infer enablement from list membership.
-            if ($item.policy -isnot [hashtable] -or $item.policy.state -cne 'enabled') { continue }
-            if ($item.capabilities -is [hashtable] -and $item.capabilities.supports -is [hashtable]) {
+            if (-not $item.ContainsKey('policy') -or $item.policy -isnot [hashtable] -or
+                -not $item.policy.ContainsKey('state') -or $item.policy.state -cne 'enabled') { continue }
+            if ($item.ContainsKey('capabilities') -and $item.capabilities -is [hashtable] -and
+                $item.capabilities.ContainsKey('supports') -and $item.capabilities.supports -is [hashtable] -and
+                $item.capabilities.supports.ContainsKey('reasoningEffort')) {
                 $supports = $item.capabilities.supports.reasoningEffort
-                if ($supports -is [bool] -and $supports) { $efforts = @($item.supportedReasoningEfforts) }
+                if ($supports -is [bool] -and $supports -and $item.ContainsKey('supportedReasoningEfforts')) { $efforts = @($item.supportedReasoningEfforts) }
                 elseif ($supports -is [bool] -and -not $supports) { $defaultOnly = $true }
             }
         } else {
             Assert-MRCondition ($Data.provider -is [string] -and $Data.provider -cmatch '^[a-zA-Z0-9][a-zA-Z0-9._-]*$') 'OpenCode provider missing/invalid.'
+            Assert-MRCondition ([string] $item.id -cmatch '^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,199}(?:\[1m\])?$') 'Invalid OpenCode model identifier.'
             $id = "$($Data.provider)/$($item.id)"
-            if ($item.capabilities -is [hashtable] -and $item.capabilities.reasoning -is [bool]) {
+            if ($item.ContainsKey('capabilities') -and $item.capabilities -is [hashtable] -and
+                $item.capabilities.ContainsKey('reasoning') -and $item.capabilities.reasoning -is [bool]) {
                 if (-not $item.capabilities.reasoning) { $defaultOnly = $true }
-                elseif ($item.variants -is [hashtable]) { $efforts = @($item.variants.Keys) }
+                elseif ($item.ContainsKey('variants') -and $item.variants -is [hashtable]) { $efforts = @($item.variants.Keys) }
             }
         }
         # Documented extended-context entries may coexist with the base aliases.
         # Inventory them without making them an implicit selection or shell syntax.
         Assert-MRCondition ($id -cmatch '^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,199}(?:\[1m\])?$') 'Invalid model identifier.'
+        # These are switching/default policies, not an exact model binding.
+        if ($Family -ne 'OpenCode' -and $id -cin @('default', 'auto', 'opusplan')) { continue }
         Assert-MRCondition (-not $seen.ContainsKey($id)) 'Duplicate model identifier; discovery is ambiguous.'
         $seen[$id] = $true
         $accepted = @($efforts | Where-Object { $_ -is [string] -and $_ -cin @('low','medium','high','xhigh','max') } | Sort-Object -Unique)
@@ -145,25 +155,61 @@ function ConvertTo-MRDiscoveredModel {
     }
 }
 
+function Get-MRAdapterEffort {
+    param([hashtable] $Model, [string] $Role)
+    if ($Role -eq 'frontier') {
+        if ('high' -cin $Model.efforts) { return 'high' }
+        return ''
+    }
+    foreach ($effort in @('medium', 'low')) {
+        if ($effort -cin $Model.efforts) { return $effort }
+    }
+    if ($Model.defaultOnly) { return 'default' }
+    # Fast tasks may reuse an expensive model; never invent a lower effort.
+    foreach ($effort in @('high', 'xhigh', 'max')) {
+        if ($effort -cin $Model.efforts) { return $effort }
+    }
+    return ''
+}
+
+function Select-MRAdapterCandidate {
+    param([string] $Family, [string] $Role, [object[]] $Models, [object[]] $Rules, [string] $ExplicitModel, [hashtable] $FallbackModel)
+    $eligible = @($Models | Where-Object { (Get-MRAdapterEffort $_ $Role) -ne '' })
+    Assert-MRCondition ($eligible.Count -gt 0) "${Family}: $Role has no model with confirmed required reasoning metadata."
+    if ($ExplicitModel) {
+        $candidates = @($eligible | Where-Object { $_.model -ceq $ExplicitModel })
+        Assert-MRCondition ($candidates.Count -eq 1) "${Family}: explicit $Role model is not an eligible discovered model."
+        return $candidates[0]
+    }
+    foreach ($rule in $Rules) {
+        if ($rule.name -ceq 'reuse-frontier') {
+            Assert-MRCondition ($null -ne $FallbackModel -and (Get-MRAdapterEffort $FallbackModel $Role) -ne '') "${Family}: no eligible frontier model to reuse."
+            return $FallbackModel
+        }
+        $candidates = @($eligible | Where-Object {
+            $name = if ($Family -eq 'OpenCode') { ($_.model -split '/', 2)[1] } else { $_.model }
+            # A larger context can change cost; require an explicit exact choice.
+            $name -cnotmatch '\[1m\]$' -and $name -cmatch $rule.pattern
+        })
+        if ($candidates.Count -eq 0) { continue }
+        $flag = if ($Role -eq 'frontier') { '-FrontierModel' } else { '-FastModel' }
+        $ids = @($candidates | ForEach-Object { $_.model } | Sort-Object -CaseSensitive) -join ', '
+        Assert-MRCondition ($candidates.Count -eq 1) "${Family}: $Role rule '$($rule.name)' is ambiguous: $ids. Specify $flag with an exact discovered ID."
+        return $candidates[0]
+    }
+    throw "${Family}: no $Role candidate matched selection policy."
+}
+
 function Select-MRDiscoveredModel {
     param([string] $Family, [AllowEmptyCollection()][object[]] $Models)
-    # Family rules are intentionally conservative: unknown families never become a quality claim.
     $policy = Read-MRJson (Join-Path $PSScriptRoot 'selection-policy.json')
-    $rules = $policy.harnesses[$Family]
-    $selected = @{}
-    foreach ($role in @('frontier', 'fast')) {
-        $candidates = @()
-        foreach ($pattern in $rules[$role]) {
-            $candidates = @($Models | Where-Object { $_.model -cmatch $pattern })
-            if ($candidates.Count -gt 0) { break }
-        }
-        Assert-MRCondition ($candidates.Count -eq 1) "${Family}: $role selection unknown or ambiguous; no provider/model fallback."
-        $selected[$role] = $candidates[0]
+    $frontier = Select-MRAdapterCandidate $Family 'frontier' $Models $policy.roles.frontier $FrontierModel
+    $fast = Select-MRAdapterCandidate $Family 'fast' $Models $policy.roles.fast $FastModel $frontier
+    return @{
+        frontier = $frontier; fast = $fast
+        frontierEffort = Get-MRAdapterEffort $frontier 'frontier'
+        fastEffort = Get-MRAdapterEffort $fast 'fast'
     }
-    Assert-MRCondition ('high' -cin $selected.frontier.efforts) "${Family}: frontier requires explicit high effort support."
-    $fastEffort = if ('medium' -cin $selected.fast.efforts) { 'medium' } elseif ('low' -cin $selected.fast.efforts) { 'low' } elseif ($selected.fast.defaultOnly) { 'default' } else { '' }
-    Assert-MRCondition ($fastEffort -ne '') "${Family}: fast model reasoning metadata is unknown."
-    return @{ frontier = $selected.frontier; fast = $selected.fast; frontierEffort = 'high'; fastEffort = $fastEffort }
 }
 
 function New-MRAdapterProfile {

@@ -54,23 +54,50 @@ session.
 
 ## Selection and results
 
-The versioned source `scripts/adapters/selection-policy.json` initially permits
-the Opus family for the three demanding roles and Haiku for `fast-mechanical`.
-This is a conservative selection rule, not measured model quality. Other
-families require a separately reviewed policy extension. A higher version
-number alone never selects a model.
+The versioned source `scripts/adapters/selection-policy.json` filters confirmed
+capabilities first, then uses declared preference tiers. This is an operating
+heuristic, not a benchmark or cross-provider quality ranking. Neither discovery
+order nor a higher version number alone selects a model. Codex and `agy` stay
+unchanged.
 
-- Claude prefers returned `opus`/`haiku` aliases. Without an alias, exactly one
-  matching full identifier must exist.
-  Additional `[1m]` entries are inventoried but never selected implicitly.
+| Role | Automatic preference tiers, in order |
+|---|---|
+| Three demanding roles | `opus` → Claude Opus → GPT excluding mini/nano → o-series → Gemini Pro → `sonnet` → Claude Sonnet → exactly one other capable model |
+| `fast-mechanical` | `haiku` → Claude Haiku → GPT mini/nano → Gemini Flash → `sonnet` → Claude Sonnet → reuse the selected frontier model |
+
+The first nonempty tier must contain exactly one eligible candidate. Multiple
+versions in that tier block with candidate IDs and the relevant selection
+parameter; the tier is not skipped. One model may serve all four roles.
+Missing Haiku is not a blocker; reuse does not promise lower cost or latency.
+
+- All new adapters use only discovered IDs. Other families can use unique
+  capability selection or exact selection; there is no Opus/Haiku allowlist.
+- Claude prefers returned `opus`/`sonnet`/`haiku` aliases over full IDs.
+  `default`, `auto` and `opusplan` are excluded for Claude/Copilot because they
+  are not exact model bindings.
+- `[1m]` entries are inventoried, but potential cost changes require explicit
+  exact selection.
 - Copilot requires explicit `policy.state=enabled`. Missing, unknown,
   unconfigured or disabled policy excludes a candidate.
 - OpenCode uses only the selected connected provider. Model IDs remain
   `provider/model`; errors never cause a provider switch.
-- Frontier requires confirmed `high`. Fast uses confirmed `medium`, then
-  `low`. Explicit absence of reasoning support permits `default`, which emits
-  **no** effort/variant argument. Missing metadata differs from confirmed lack
-  of support and blocks selection.
+- Frontier requires confirmed `high`. Fast uses confirmed `medium`, then `low`,
+  then `default` without an effort/variant argument when lack of reasoning
+  support is explicit. Otherwise a confirmed level from `high`, `xhigh`, `max`
+  is used; a lower level is never invented. Missing metadata excludes that
+  candidate. A role without an eligible candidate remains blocked.
+
+Use `-FrontierModel` and `-FastModel` with exact discovered IDs when needed,
+including for new families. OpenCode IDs include the provider. These choices
+cannot bypass capabilities, authentication, Copilot policy or provider binding.
+Example with synthetic IDs, not promised availability:
+
+```text
+bash scripts/resolve-model-routing.sh -Action Status -Harness Copilot -SdkModulePath /absolute/sdk/entry.js -FrontierModel gpt-99 -FastModel gpt-99-mini
+```
+
+Repeat the same explicit selection parameters on subsequent status/refresh
+calls. These new parameters do not apply to Codex or `agy`.
 
 Exit code `0` means aligned, `2` means refresh required, `3` means blocked.
 With no profile, status proposes a binding and returns 2. Ambiguity, duplicate
@@ -78,7 +105,9 @@ IDs, empty inventories and incompatible interfaces return 3 and preserve an
 existing profile. `-WhatIf` writes nothing. After explicit local authority,
 repeat the command with `-Action Refresh`. Profile schema remains 2.0.
 Codex/Antigravity retain their existing `generatedBy`; new profiles use
-`model-routing-governance/0.2.0`.
+`model-routing-governance/0.2.0`. New profiles also bind the selection policy
+through `selectionPolicySha256`. A changed or missing hash causes
+`RefreshRequired` without modifying a profile during status.
 
 ## Execution requires its own authority
 

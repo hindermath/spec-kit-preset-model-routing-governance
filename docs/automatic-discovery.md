@@ -57,24 +57,53 @@ Nachbildung einer individuell angepassten interaktiven Sitzung.
 
 ## Auswahl und Ergebnisse
 
-Die versionierte Quelle `scripts/adapters/selection-policy.json` erlaubt
-zunächst die Modellfamilien Opus für die drei anspruchsvollen Rollen und Haiku
-für `fast-mechanical`. Das ist eine konservative Auswahlregel, kein gemessener
-Qualitätsnachweis. Andere Familien benötigen eine gesondert geprüfte
-Policy-Erweiterung. Es wird kein Modell allein wegen einer höheren
-Versionsnummer ausgewählt.
+Die versionierte Quelle `scripts/adapters/selection-policy.json` filtert zuerst
+bestätigte Fähigkeiten und verwendet danach deklarierte Präferenzstufen.
+Die Reihenfolge ist eine betriebliche Heuristik, kein Benchmark oder
+anbieterübergreifender Qualitätsnachweis. Weder Listenposition noch eine höhere
+Versionsnummer allein entscheiden. Codex und `agy` bleiben unverändert.
 
-- Claude bevorzugt die gelieferten Aliase `opus` und `haiku`; fehlen sie,
-  muss genau eine passende vollständige Kennung vorhanden sein.
-  Zusätzliche `[1m]`-Einträge werden erkannt, aber nicht automatisch gewählt.
+| Rolle | Automatische Präferenzstufen, in Reihenfolge |
+|---|---|
+| Drei anspruchsvolle Rollen | `opus` → Claude Opus → GPT ohne mini/nano → o-Serie → Gemini Pro → `sonnet` → Claude Sonnet → genau ein sonstiges geeignetes Modell |
+| `fast-mechanical` | `haiku` → Claude Haiku → GPT mini/nano → Gemini Flash → `sonnet` → Claude Sonnet → gewähltes Frontier-Modell wiederverwenden |
+
+Die erste nicht leere Stufe muss genau einen geeigneten Kandidaten enthalten.
+Mehrere Versionen derselben Stufe blockieren mit Kandidaten-IDs und passendem
+Auswahlparameter; die Stufe wird nicht übersprungen. Ein Modell darf alle vier
+Rollen übernehmen. Fehlendes Haiku ist kein Blocker und die Wiederverwendung
+verspricht keine Kosten- oder Zeitersparnis.
+
+- Alle neuen Adapter verwenden ausschließlich gemeldete IDs. Sonstige Familien
+  können über eindeutige Fähigkeitsauswahl oder exakte Auswahl verwendet werden;
+  es gibt keine Opus-/Haiku-Erlaubnisliste.
+- Claude bevorzugt gelieferte `opus`-/`sonnet`-/`haiku`-Aliase vor vollen IDs.
+  `default`, `auto` und `opusplan` sind bei Claude/Copilot ausgeschlossen, da sie
+  keine exakte Modellbindung darstellen.
+- `[1m]`-Einträge werden erkannt, aber wegen möglicher Kostenfolgen nur nach
+  ausdrücklicher exakter Auswahl verwendet.
 - Copilot benötigt ausdrücklich `policy.state=enabled`. Fehlende, unbekannte,
   unkonfigurierte oder deaktivierte Policy blockiert den Kandidaten.
 - OpenCode berücksichtigt nur den benannten verbundenen Provider. Die
   Modellkennung bleibt `provider/model`; kein Anbieterwechsel bei Fehlern.
 - Frontier benötigt bestätigtes `high`. Fast verwendet bestätigtes `medium`,
-  sonst `low`. Nur explizit fehlende Reasoning-Unterstützung erlaubt `default`;
-  dabei wird **kein** Effort-/Variant-Argument erzeugt. Fehlende Metadaten
-  sind etwas anderes als bestätigte Nichtunterstützung und blockieren.
+  sonst `low`, sonst bei ausdrücklich fehlender Reasoning-Unterstützung
+  `default` ohne Effort-/Variant-Argument. Andernfalls wird eine bestätigte
+  Stufe aus `high`, `xhigh`, `max` verwendet; keine niedrigere Stufe wird erfunden.
+  Fehlende Metadaten schließen den Kandidaten aus. Gibt es für eine Rolle keinen
+  geeigneten Kandidaten, bleibt der Lauf blockiert.
+
+`-FrontierModel` und `-FastModel` benennen bei Bedarf exakte gemeldete IDs,
+auch für neue Familien. Bei OpenCode gehört der Provider zur ID. Fähigkeiten,
+Anmeldung, Copilot-Policy und Providerbindung werden damit nicht umgangen.
+Beispiel mit synthetischen IDs, keine Zusage tatsächlicher Verfügbarkeit:
+
+```text
+bash scripts/resolve-model-routing.sh -Action Status -Harness Copilot -SdkModulePath /absolute/sdk/entry.js -FrontierModel gpt-99 -FastModel gpt-99-mini
+```
+
+Für spätere Status-/Refresh-Aufrufe dieselben expliziten Auswahlparameter
+verwenden. Diese neuen Parameter gelten nicht für Codex oder `agy`.
 
 `0` bedeutet ausgerichtet, `2` bedeutet Refresh erforderlich, `3` bedeutet
 blockiert. Ohne Profil zeigt Status einen Vorschlag mit Exitcode 2. Mehrdeutige
@@ -82,7 +111,9 @@ Treffer, doppelte IDs, leere Listen oder inkompatible Schnittstellen ergeben
 Exitcode 3 und erhalten ein bestehendes Profil. `-WhatIf` schreibt nichts.
 Nach ausdrücklicher lokaler Freigabe denselben Aufruf mit `-Action Refresh`
 wiederholen. Das Schema bleibt 2.0. `generatedBy` bleibt für Codex/Antigravity
-unverändert; neue Profile tragen `model-routing-governance/0.2.0`.
+unverändert; neue Profile tragen `model-routing-governance/0.2.0`. Zusätzlich
+bindet `selectionPolicySha256` die Auswahlpolicy. Ein anderer oder fehlender
+Hash ergibt `RefreshRequired`, ohne das Profil beim Status zu ändern.
 
 ## Ausführung bleibt ein eigener Auftrag
 

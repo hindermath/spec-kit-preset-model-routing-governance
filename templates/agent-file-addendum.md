@@ -10,7 +10,11 @@
 - Refresh only known, unique mappings after the stable resolver's metadata
   checks and explicit local authority. Refresh does not run the rendered
   model-access preflight. That later execution can consume quota and needs its
-  applicable run authority. Unknown or ambiguous mappings remain blocked.
+  applicable run authority. Missing capabilities and ambiguous tiers block.
+- New adapters filter capabilities before broad family preferences. Exact
+  discovered IDs may use `-FrontierModel`/`-FastModel`; they never bypass policy
+  or capability checks. One model may serve several roles. Codex/agy selection
+  remains unchanged; no automatic newest-version guessing.
 - All five harnesses have automatic paths in candidate 0.2.0. Claude/Copilot need an explicitly supplied installed SDK; OpenCode needs an existing loopback server and a selected connected provider. Fail closed on missing prerequisites; never install or switch providers implicitly.
 
 DE: Refresh bindet nur eindeutige Metadaten unter lokaler Änderungsautorität.
@@ -21,5 +25,5 @@ Runner-Preflight kann Kontingent verbrauchen. Neue automatische Adapter benötig
 
 *Keep concrete models in a local, non-versioned profile. Resolve only the
 current agent surface, never switch providers silently, and fail closed for
-unknown or ambiguous mappings. Model routing grants no execution or remote
+missing capabilities or ambiguous mappings. Model routing grants no execution or remote
 authority.*

@@ -41,6 +41,14 @@
     DE: Ausdruecklich gewaehlter verbundener OpenCode-Provider.
     EN: Explicitly selected connected OpenCode provider.
 
+.PARAMETER FrontierModel
+    DE: Optionale exakte Auswahl aus der Discovery fuer die drei anspruchsvollen Rollen.
+    EN: Optional exact discovered model for the three demanding roles.
+
+.PARAMETER FastModel
+    DE: Optionale exakte Auswahl aus der Discovery fuer schnelle Aufgaben.
+    EN: Optional exact discovered model for fast tasks.
+
 .EXAMPLE
     pwsh -NoProfile -File scripts/resolve-model-routing.ps1 -Action Status -Harness Codex
 
@@ -62,6 +70,8 @@ param(
     [string] $SdkModulePath = '',
     [string] $OpenCodeServerUrl = '',
     [string] $OpenCodeProvider = '',
+    [string] $FrontierModel = '',
+    [string] $FastModel = '',
 
     [ValidateSet('Text', 'Json')]
     [string] $OutputFormat = 'Text'
@@ -391,9 +401,13 @@ try {
         if (-not $DiscoveryFixture) { Test-MRNewCli $resolvedHarness }
         $models = @(Get-MRModels $resolvedHarness $DiscoveryFixture)
     }
+    Assert-MRCondition ($isNewHarness -or (-not $FrontierModel -and -not $FastModel)) 'Exact model overrides apply only to Claude, Copilot and OpenCode.'
     $selection = Select-MRModels $resolvedHarness $models
     $candidate = New-MRConfig $resolvedHarness $version $mode $selection $catalogHash
-    if ($isNewHarness) { $candidate.generatedBy = 'model-routing-governance/0.2.0' }
+    if ($isNewHarness) {
+        $candidate.generatedBy = 'model-routing-governance/0.2.0'
+        $candidate.selectionPolicySha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot 'adapters/selection-policy.json') -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
     $status = if (Test-Path -LiteralPath $ConfigPath -PathType Leaf) {
         $existing = Read-MRJson $ConfigPath
         if ([string] $existing.schemaVersion -ne '2.0') {
@@ -413,6 +427,11 @@ try {
                 catalogSha256 = [string] $candidate.catalogSha256
                 profiles = $candidate.profiles
             } | ConvertTo-Json -Depth 30 -Compress
+            if ($isNewHarness) {
+                $existingHash = if ($existing.ContainsKey('selectionPolicySha256')) { [string] $existing.selectionPolicySha256 } else { '' }
+                $existingComparable += $existingHash
+                $candidateComparable += [string] $candidate.selectionPolicySha256
+            }
             if ($existingComparable -ceq $candidateComparable) { 'Aligned' } else { 'RefreshRequired' }
         }
     } else { 'RefreshRequired' }
