@@ -30,7 +30,7 @@
       "priority": 60
     },
     "model-routing-governance": {
-      "version": "0.2.0",
+      "version": "0.2.1",
       "priority": 61
     },
     "intake-authoring-governance": {

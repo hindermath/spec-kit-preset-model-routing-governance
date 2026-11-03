@@ -83,8 +83,8 @@ try {
         Assert-Adapter (-not (Test-Path $config)) "$family WhatIf wrote profile."
         $refresh = Invoke-TestResolver $resolver $family Refresh $fixture $config
         Assert-Adapter ($refresh.code -eq 0 -and $refresh.result.roles.Count -eq 4) "$family refresh failed."
-        $profile = Get-Content $config -Raw | ConvertFrom-Json -AsHashtable
-        $fastProfile = $profile.profiles["$($family.ToLowerInvariant())-fast-auto"]
+        $profileData = Get-Content $config -Raw | ConvertFrom-Json -AsHashtable
+        $fastProfile = $profileData.profiles["$($family.ToLowerInvariant())-fast-auto"]
         Assert-Adapter ($fastProfile.reasoningEffort -ceq 'default' -and '{reasoningEffort}' -cnotin $fastProfile.arguments) "$family invented effort."
         $digest = (Get-FileHash $config).Hash
         $status = Invoke-TestResolver $resolver $family Status $fixture $config

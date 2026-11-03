@@ -25,8 +25,10 @@ function Assert-ReleaseStatus {
 function Test-ReleasePreparation {
     param($Value, [string]$Id, [string]$PackageVersion, [string]$HistoricalVersion, [bool]$MetadataCorrection)
     try {
+        $testCompatibilityValid = $Id -cne 'model-routing-governance' -or $PackageVersion -cne '0.2.1' -or
+            ($Value.changeKind -ceq 'PowerShellTestCompatibility' -and -not [string]::IsNullOrWhiteSpace($Value.authorizationReference))
         $null = [DateTimeOffset]::Parse([string]$Value.preparedAt, [Globalization.CultureInfo]::InvariantCulture)
-        return $Value.schemaVersion -eq 1 -and $Value.presetId -ceq $Id -and
+        return $testCompatibilityValid -and $Value.schemaVersion -eq 1 -and $Value.presetId -ceq $Id -and
             $Value.packageVersion -ceq $PackageVersion -and
             $Value.historicalPublicationVersion -ceq $HistoricalVersion -and
             [version]$HistoricalVersion -lt [version]$PackageVersion -and
