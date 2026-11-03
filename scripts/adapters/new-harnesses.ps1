@@ -239,7 +239,8 @@ function New-MRAdapterProfile {
         }
     }
     $executable = [string] $script:Harnesses[$Family].executable
-    $resultAdapter = Join-Path $PSScriptRoot 'invoke-harness-with-result.ps1'
+    # Repository-relative canonical path keeps root/preset resolution byte-identical.
+    $resultAdapter = '.specify/presets/model-routing-governance/scripts/adapters/invoke-harness-with-result.ps1'
     $arguments = @('-NoProfile', '-File', $resultAdapter, '-OutputFile', '{outputFile}', '-Executable', $executable, '--') + $harnessArguments
     return [ordered]@{
         routingRole = $Role; agentFamily = $Family; model = $Model.model

@@ -88,6 +88,7 @@ try {
             Assert-Adapter ($runnerProfileData.executable -ceq 'pwsh') "$family profile bypasses the result adapter."
             Assert-Adapter ('{outputFile}' -cin $runnerProfileData.arguments) "$family profile lacks the runner result path."
             Assert-Adapter (@($runnerProfileData.arguments | Where-Object { $_ -like '*invoke-harness-with-result.ps1' }).Count -eq 1) "$family profile lacks the structured-output transport."
+            Assert-Adapter ('.specify/presets/model-routing-governance/scripts/adapters/invoke-harness-with-result.ps1' -cin $runnerProfileData.arguments) "$family profile stores a machine-specific adapter path."
             Assert-Adapter ($runnerProfileData.preflight.executable -ceq $family.ToLowerInvariant()) "$family preflight no longer invokes the harness directly."
         }
         $fastProfile = $profileData.profiles["$($family.ToLowerInvariant())-fast-auto"]
