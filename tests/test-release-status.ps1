@@ -36,7 +36,10 @@ function Test-ReleasePreparation {
             $Value.externalPublicationEvidence -ceq
                 "https://github.com/hindermath/spec-kit-preset-$Id/releases/tag/v$PackageVersion" -and
             $Value.runtimeChanged -is [bool] -and $Value.runtimeChanged -eq $MetadataCorrection -and
-            (-not $MetadataCorrection -or ($Value.metadataCorrectionApproved -is [bool] -and
+            (-not $MetadataCorrection -or ($Id -ceq 'model-routing-governance' -and
+                $PackageVersion -ceq '0.2.0' -and $Value.changeKind -ceq 'AdditiveAdapters' -and
+                -not [string]::IsNullOrWhiteSpace($Value.authorizationReference)) -or
+                ($Value.metadataCorrectionApproved -is [bool] -and
                 $Value.metadataCorrectionApproved -and -not [string]::IsNullOrWhiteSpace($Value.authorizationReference))) -and
             $Value.generatorSchemaChanged -is [bool] -and -not $Value.generatorSchemaChanged
     } catch { return $false }
@@ -102,7 +105,8 @@ $id = [regex]::Match($manifest, '(?m)^  id: "([^"]+)"').Groups[1].Value
 $packageVersion = [regex]::Match($manifest, '(?m)^  version: "([^"]+)"').Groups[1].Value
 $fixture = Get-Content (Join-Path $PSScriptRoot 'fixtures/documentation-package.json') -Raw | ConvertFrom-Json
 $version = $fixture.publicationEvidenceVersion
-$expectedMetadataCorrection = $id -cin @('intake-authoring-governance', 'intake-sequencing-governance')
+$expectedMetadataCorrection = $id -cin @('intake-authoring-governance', 'intake-sequencing-governance') -or
+    ($id -ceq 'model-routing-governance' -and $packageVersion -ceq '0.2.0')
 Assert-ReleaseStatus ($fixture.version -ceq $packageVersion -and [version]$version -lt [version]$packageVersion) 'explicit earlier publication record, not current-package publication'
 $preparation = Get-Content (Join-Path $root "docs/release-$packageVersion-preparation.json") -Raw | ConvertFrom-Json
 Assert-ReleaseStatus ($preparation.presetId -ceq $id -and $preparation.packageVersion -ceq $packageVersion -and
@@ -116,6 +120,8 @@ foreach ($mutate in @(
     { param($x) $x.candidate_status = 'Published' },
     { param($x) $x.release_status = 'Published' },
     { param($x) $x.runtimeChanged = -not $x.runtimeChanged },
+    { param($x) $x.changeKind = 'UnapprovedRuntimeChange' },
+    { param($x) $x.authorizationReference = '' },
     { param($x) $x.generatorSchemaChanged = 'false' },
     { param($x) $x.sourceCommit = 'invalid' },
     { param($x) $x.preparedAt = 'invalid' },

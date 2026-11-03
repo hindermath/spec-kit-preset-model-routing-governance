@@ -1,0 +1,42 @@
+name: Adapter discovery
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  adapters:
+    name: Adapter contracts (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Check runtimes
+        shell: pwsh
+        run: |
+          node --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ([int](node -p 'process.versions.node.split(".")[0]') -lt 22) { throw 'Node.js 22+ required' }
+      - name: Native Bash wrapper (macOS/Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: bash tests/test-model-routing-discovery.sh
+      - name: Adapter and unchanged legacy contracts (offline)
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File tests/test-additive-adapters.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test tests/test-sdk-bridge.mjs tests/test-adapter-transports.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pwsh -NoProfile -File tests/test-release-status.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --exit-code
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (@(git status --porcelain --untracked-files=all).Count) { throw 'Adapter tests changed checkout' }

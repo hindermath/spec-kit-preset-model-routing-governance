@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0",
+  "harnesses": {
+    "Claude": {
+      "frontier": ["^opus$", "^claude-opus-[0-9][a-z0-9.-]*$"],
+      "fast": ["^haiku$", "^claude-haiku-[0-9][a-z0-9.-]*$"]
+    },
+    "Copilot": {
+      "frontier": ["^claude-opus-[0-9][a-z0-9.-]*$"],
+      "fast": ["^claude-haiku-[0-9][a-z0-9.-]*$"]
+    },
+    "OpenCode": {
+      "frontier": ["^[a-zA-Z0-9][a-zA-Z0-9._-]*/claude-opus-[0-9][a-z0-9.-]*$"],
+      "fast": ["^[a-zA-Z0-9][a-zA-Z0-9._-]*/claude-haiku-[0-9][a-z0-9.-]*$"]
+    }
+  }
+}

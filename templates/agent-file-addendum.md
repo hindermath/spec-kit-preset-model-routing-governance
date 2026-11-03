@@ -11,15 +11,11 @@
   checks and explicit local authority. Refresh does not run the rendered
   model-access preflight. That later execution can consume quota and needs its
   applicable run authority. Unknown or ambiguous mappings remain blocked.
-- The stable resolver renders automatic profiles only for Codex and
-  Antigravity; policy labels for Claude, Copilot and OpenCode are not implemented
-  candidate-validation/profile renderers. Report limits without provider switching.
+- All five harnesses have automatic paths in candidate 0.2.0. Claude/Copilot need an explicitly supplied installed SDK; OpenCode needs an existing loopback server and a selected connected provider. Fail closed on missing prerequisites; never install or switch providers implicitly.
 
 DE: Refresh bindet nur eindeutige Metadaten unter lokaler Änderungsautorität.
 Eine Modellzugangs-Probe wird dabei nicht ausgeführt. Ein späterer
-Runner-Preflight kann Kontingent verbrauchen. Automatische Profile gibt es im
-stabilen Resolver nur für Codex und Antigravity; andere Policy-Bezeichnungen
-sind keine implementierten Adapter. Keine stille Ersatzwahl.
+Runner-Preflight kann Kontingent verbrauchen. Neue automatische Adapter benötigen vorhandene SDKs bzw. einen ausdrücklich benannten lokalen OpenCode-Server und Provider. Codex und Antigravity bleiben unverändert. Keine stille Ersatzwahl.
 - `script-only` never starts a model process. Model routing grants no delivery,
   remote, secret, provider, bypass, or administrator authority.
 

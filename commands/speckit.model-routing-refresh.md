@@ -8,16 +8,15 @@ Refresh exactly one local, non-versioned model-routing profile under current
 explicit authority. Resolve the script from the repository's top-level
 `scripts` directory first and
 otherwise from `.specify/presets/model-routing-governance/scripts/`. Detect the
-active harness. In this stable release the resolver can enumerate and render
-automatic profiles only for Codex and Antigravity. Claude, Copilot and OpenCode
-have policy labels, not implemented automatic candidate-validation/profile
-paths. Report that limitation; do not claim those adapters work or start
-another harness.
+active harness explicitly. All five harnesses have automatic paths in the 0.2.0
+candidate. Claude/Copilot require an explicitly supplied local SDK entry;
+OpenCode requires an already running loopback server and a selected connected
+provider. Follow the adapter guide; never install dependencies or start another
+harness as fallback.
 
 DE: Genau eine lokale Bindung nur nach ausdrücklichem Auftrag aktualisieren.
-Der stabile Resolver unterstützt automatische Profile nur für Codex und
-Antigravity. Policy-Bezeichnungen für Claude, Copilot und OpenCode sind keine
-implementierten Adapter. Eine solche Grenze melden, nicht umgehen.
+Codex und Antigravity bleiben unverändert. Neue Adapter haben ausdrückliche
+Voraussetzungen; unbekannte oder mehrdeutige Zuordnungen bleiben blockiert.
 Refresh prüft Discovery-Metadaten und schreibt das lokale Profil. Er führt
 keinen Modellzugangs-Preflight aus. Ein späterer Runner-Preflight kann ein
 Modell aufrufen und Kontingent verbrauchen; dafür gilt die eigene Laufautorität.
