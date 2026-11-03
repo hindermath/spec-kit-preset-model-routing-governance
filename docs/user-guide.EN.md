@@ -1,8 +1,8 @@
 # User guide: model-routing-governance
 
-<!-- current-package: 0.2.1 -->
+<!-- current-package: 0.2.2 -->
 
-Package identity: **v0.2.1**. [Preparation and publication boundary](release-0.2.1-validation.md). The release page, not this preparation snapshot, proves publication and the external archive hash. Earlier version records below remain historical.
+Package identity: **v0.2.2**. [Preparation and publication boundary](release-0.2.2-validation.md). The release page, not this preparation snapshot, proves publication and the external archive hash. Earlier version records below remain historical.
 
 [Release-Abschluss und Verbesserungsprofil / Publication closeout and improvement profile](release-0.1.6-validation.md).
 

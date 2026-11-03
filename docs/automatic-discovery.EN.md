@@ -60,6 +60,12 @@ heuristic, not a benchmark or cross-provider quality ranking. Neither discovery
 order nor a higher version number alone selects a model. Codex and `agy` stay
 unchanged.
 
+Claude, Copilot and OpenCode return the structured phase result on standard
+output. `invoke-harness-with-result.ps1` accepts only a successful JSON object
+and atomically writes it to the autonomous runner's `{outputFile}` path. This
+also supports read-only roles without granting the harness file-write access.
+Empty, failed or unstructured output creates no result file.
+
 | Role | Automatic preference tiers, in order |
 |---|---|
 | Three demanding roles | `opus` → Claude Opus → GPT excluding mini/nano → o-series → Gemini Pro → `sonnet` → Claude Sonnet → exactly one other capable model |

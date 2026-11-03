@@ -45,6 +45,8 @@ jobs:
         run: |
           pwsh -NoProfile -File tests/test-additive-adapters.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pwsh -NoProfile -File tests/test-harness-result-transport.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           pwsh -NoProfile -File tests/test-broad-model-selection.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test tests/test-sdk-bridge.mjs tests/test-adapter-transports.mjs

@@ -1,10 +1,10 @@
 # Nutzungsleitfaden: model-routing-governance
 
-<!-- current-package: 0.2.1 -->
+<!-- current-package: 0.2.2 -->
 
-Paketkennung: **v0.2.1**. [Vorbereitung und Veröffentlichungsgrenze](release-0.2.1-validation.md). Die Release-Seite und der externe Archivnachweis belegen die Veröffentlichung, nicht dieser Vorbereitungsstand. Frühere Versionsnachweise unten bleiben historisch.
+Paketkennung: **v0.2.2**. [Vorbereitung und Veröffentlichungsgrenze](release-0.2.2-validation.md). Die Release-Seite und der externe Archivnachweis belegen die Veröffentlichung, nicht dieser Vorbereitungsstand. Frühere Versionsnachweise unten bleiben historisch.
 
-<span lang="en">Package identity: v0.2.1. The release page and external archive evidence prove publication, not this preparation snapshot. Earlier version records below remain historical.</span>
+<span lang="en">Package identity: v0.2.2. The release page and external archive evidence prove publication, not this preparation snapshot. Earlier version records below remain historical.</span>
 
 [Release-Abschluss und Verbesserungsprofil / Publication closeout and improvement profile](release-0.1.6-validation.md).
 
