@@ -218,29 +218,32 @@ function New-MRAdapterProfile {
     param([string] $Family, [string] $Role, [hashtable] $Model, [string] $Effort)
     $readOnly = $Role -eq 'fast-mechanical'
     $effortArgs = if ($Effort -eq 'default') { @() } elseif ($Family -eq 'OpenCode') { @('--variant', '{reasoningEffort}') } else { @('--effort', '{reasoningEffort}') }
+    $resultInstruction = 'Return the machine-readable autonomous phase result as the only standard-output content. Use autonomous-phase-result-template.json. Do not write files.'
     switch ($Family) {
         Claude {
             $common = @('--print', '--no-session-persistence', '--model', '{model}') + $effortArgs
             $preflight = $common + @('--permission-mode', 'plan', '--tools', '', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', 'Reply exactly MODEL_READY without using tools.')
             $mode = if ($readOnly) { 'plan' } else { 'acceptEdits' }
-            $arguments = $common + @('--permission-mode', $mode, '{prompt}')
+            $harnessArguments = $common + @('--permission-mode', $mode, ('{prompt}' + "`n`n" + $resultInstruction))
         }
         Copilot {
             $common = @('--model', '{model}', '--no-auto-update', '--no-ask-user') + $effortArgs
             $preflight = $common + @('--available-tools', 'view', '--deny-tool', 'write,shell', '--disable-builtin-mcps', '--prompt', 'Reply exactly MODEL_READY without using tools.')
-            $arguments = $common + $(if ($readOnly) { @('--available-tools', 'view', '--deny-tool', 'write,shell', '--disable-builtin-mcps') } else { @() }) + @('--prompt', '{prompt}')
+            $harnessArguments = $common + $(if ($readOnly) { @('--available-tools', 'view', '--deny-tool', 'write,shell', '--disable-builtin-mcps') } else { @() }) + @('--prompt', ('{prompt}' + "`n`n" + $resultInstruction))
         }
         OpenCode {
             $common = @('run', '--model', '{model}') + $effortArgs
             $preflight = $common + @('--agent', 'plan', 'Reply exactly MODEL_READY without using tools.')
             $mode = if ($readOnly) { 'plan' } else { 'build' }
-            $arguments = $common + @('--agent', $mode, '{prompt}')
+            $harnessArguments = $common + @('--agent', $mode, ('{prompt}' + "`n`n" + $resultInstruction))
         }
     }
     $executable = [string] $script:Harnesses[$Family].executable
+    $resultAdapter = Join-Path $PSScriptRoot 'invoke-harness-with-result.ps1'
+    $arguments = @('-NoProfile', '-File', $resultAdapter, '-OutputFile', '{outputFile}', '-Executable', $executable, '--') + $harnessArguments
     return [ordered]@{
         routingRole = $Role; agentFamily = $Family; model = $Model.model
-        reasoningEffort = $Effort; executable = $executable
+        reasoningEffort = $Effort; executable = 'pwsh'
         preflight = [ordered]@{ executable = $executable; arguments = $preflight }
         arguments = $arguments
     }

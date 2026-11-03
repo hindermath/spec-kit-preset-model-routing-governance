@@ -63,6 +63,13 @@ Die Reihenfolge ist eine betriebliche Heuristik, kein Benchmark oder
 anbieterübergreifender Qualitätsnachweis. Weder Listenposition noch eine höhere
 Versionsnummer allein entscheiden. Codex und `agy` bleiben unverändert.
 
+Claude, Copilot und OpenCode geben das strukturierte Phasenergebnis auf der
+Standardausgabe zurück. `invoke-harness-with-result.ps1` akzeptiert nur ein
+erfolgreiches JSON-Objekt und schreibt es atomar an den vom autonomen Runner
+vorgegebenen `{outputFile}`-Pfad. Dadurch funktionieren auch lesende Rollen,
+ohne dem Harness Dateischreibrechte zu erteilen. Leere, fehlerhafte oder
+nicht strukturierte Ausgabe erzeugt keine Ergebnisdatei.
+
 | Rolle | Automatische Präferenzstufen, in Reihenfolge |
 |---|---|
 | Drei anspruchsvolle Rollen | `opus` → Claude Opus → GPT ohne mini/nano → o-Serie → Gemini Pro → `sonnet` → Claude Sonnet → genau ein sonstiges geeignetes Modell |

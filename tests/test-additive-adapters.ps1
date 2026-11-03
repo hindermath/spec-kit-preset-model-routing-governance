@@ -84,6 +84,12 @@ try {
         $refresh = Invoke-TestResolver $resolver $family Refresh $fixture $config
         Assert-Adapter ($refresh.code -eq 0 -and $refresh.result.roles.Count -eq 4) "$family refresh failed."
         $profileData = Get-Content $config -Raw | ConvertFrom-Json -AsHashtable
+        foreach ($runnerProfileData in $profileData.profiles.Values) {
+            Assert-Adapter ($runnerProfileData.executable -ceq 'pwsh') "$family profile bypasses the result adapter."
+            Assert-Adapter ('{outputFile}' -cin $runnerProfileData.arguments) "$family profile lacks the runner result path."
+            Assert-Adapter (@($runnerProfileData.arguments | Where-Object { $_ -like '*invoke-harness-with-result.ps1' }).Count -eq 1) "$family profile lacks the structured-output transport."
+            Assert-Adapter ($runnerProfileData.preflight.executable -ceq $family.ToLowerInvariant()) "$family preflight no longer invokes the harness directly."
+        }
         $fastProfile = $profileData.profiles["$($family.ToLowerInvariant())-fast-auto"]
         Assert-Adapter ($fastProfile.reasoningEffort -ceq 'default' -and '{reasoningEffort}' -cnotin $fastProfile.arguments) "$family invented effort."
         $digest = (Get-FileHash $config).Hash
