@@ -1,10 +1,10 @@
 # Model Routing Governance
 
-<!-- current-package: 0.1.7 -->
+<!-- current-package: 0.2.0 -->
 
-Paketkennung: **v0.1.7**. [Vorbereitung und Veröffentlichungsgrenze](docs/release-0.1.7-validation.md). Die Release-Seite und der externe Archivnachweis belegen die Veröffentlichung, nicht dieser Vorbereitungsstand. Frühere Versionsnachweise unten bleiben historisch.
+Paketkennung: **v0.2.0**. [Vorbereitung und Veröffentlichungsgrenze](docs/release-0.2.0-validation.md). Die Release-Seite und der externe Archivnachweis belegen die Veröffentlichung, nicht dieser Vorbereitungsstand. Frühere Versionsnachweise unten bleiben historisch.
 
-<span lang="en">Package identity: v0.1.7. The release page and external archive evidence prove publication, not this preparation snapshot. Earlier version records below remain historical.</span>
+<span lang="en">Package identity: v0.2.0. The release page and external archive evidence prove publication, not this preparation snapshot. Earlier version records below remain historical.</span>
 
 [Release-Abschluss und Verbesserungsprofil / Publication closeout and improvement profile](docs/release-0.1.6-validation.md).
 
@@ -75,6 +75,8 @@ Leserpfad / Reader path: [Installation](#installation) → [Rollen](#rollen) →
 [English](#english). Fehlende Tools oder mehrdeutige Discovery klären, keinen
 Fallback erfinden. / Resolve reported tool/discovery blockers without guessing.
 
+Neue Adapter / New adapters: [Deutsch](docs/automatic-discovery.md) · [English](docs/automatic-discovery.EN.md). **v0.2.0 ist ein Entwicklungskandidat / is a development candidate.** Kein Release, keine Installation oder Verteilung / no release, installation or rollout.
+
 Read-only Installationsprüfung / Read-only installation checks:
 
 ```bash
@@ -106,29 +108,26 @@ konkrete Bindung liegt lokal außerhalb des Projekt-Repositories.
 ### Harness-Fähigkeiten
 
 Die Policy nennt Adapter-Kategorien; eine Kategorie ist kein Nachweis einer
-implementierten Funktion. Im stabilen Resolver dieses Pakets gilt:
+implementierten Funktion. Im Entwicklungskandidaten dieses Pakets gilt:
 
 | Harness | Tatsächlich vorhandener Pfad / Implemented path |
 |---|---|
 | Codex | Strukturierte Metadaten und automatische Profile / structured metadata and automatic profiles |
 | Antigravity (`agy`) | Namenskatalog und heuristische Zuordnung / name catalogue and heuristic mapping |
-| Claude | Keine automatische Kandidatenprüfung oder Profilerzeugung / no automatic candidate validation or profile rendering |
-| Copilot | Keine automatische Kandidatenprüfung oder Profilerzeugung / no automatic candidate validation or profile rendering |
-| OpenCode | Policy-Kategorie, kein implementierter automatischer Resolverpfad / policy category, no implemented automatic resolver path |
+| Claude | SDK-Modellliste und automatische Profile / SDK model list and automatic profiles |
+| Copilot | SDK-Modellliste mit Policy-Prüfung / SDK model list with policy checks |
+| OpenCode | Lokale Server-Metadaten, expliziter Provider / local server metadata, explicit provider |
 
-*Policy categories do not prove implemented capabilities. Only Codex and
-Antigravity have automatic selection/profile paths in this stable resolver.
-Other harness labels must not be presented as working adapters.*
+*Policy categories do not prove implemented capabilities. All five harnesses have automatic paths in this candidate. New adapters have explicit prerequisites and conservative selection rules; see the adapter guide.*
 
 Codex verwendet die vorhandenen Default-/Beschreibungshinweise; Antigravity
 verwendet vorhandene Namensmuster und vorgegebene Effort-Werte. Das sind
 Heuristiken, kein unabhängiger Qualitäts-, Zugangs- oder Fähigkeitsnachweis.
-Dieser Dokumentationspatch ändert diese Implementierung nicht.
+Codex und Antigravity behalten diese Implementierung unverändert. Die neuen Adapter sind in [Automatische Adapter](docs/automatic-discovery.md) mit Voraussetzungen und Grenzen beschrieben.
 
 *Codex uses existing default/description hints; Antigravity uses existing name
 patterns and preset effort values. These are heuristics, not independent
-quality, access or capability evidence. This documentation patch changes
-none of that implementation.*
+quality, access or capability evidence. Codex and Antigravity retain that implementation unchanged. See [automatic adapters](docs/automatic-discovery.EN.md) for the new paths.*
 
 - `Enumerate`: strukturierte Modelle und Reasoning-Stufen, beispielsweise
   Codex `model/list`.
@@ -138,16 +137,24 @@ none of that implementation.*
 - `ConfiguredOnly`: keine belastbare Discovery; nur vorhandene Konfiguration
   verwenden.
 
-Die letzten beiden Kategorien beschreiben Policy-Begriffe, nicht hier
-implementierte Ausführungspfade. Bei diesen Harnessen die bestehende Grenze
-melden; kein automatischer Wechsel und keine Behauptung einer erfolgreichen Prüfung.
+Die letzten beiden Kategorien bleiben reservierte Policy-Begriffe. Die drei
+neuen Adapter verwenden `Enumerate` mit den dokumentierten Voraussetzungen.
+Fehlende Voraussetzungen blockieren; kein automatischer Anbieterwechsel.
 
-*The last two categories are policy concepts, not implemented execution paths
-in this release. Report the existing limit rather than switching harnesses or
-claiming a successful check.*
+*The last two categories remain reserved policy concepts. The three new
+adapters use Enumerate with documented prerequisites. Missing prerequisites
+block discovery without a provider switch.*
 
-Unbekannte oder mehrdeutige Zuordnungen blockieren. Es gibt keinen stillen
-Fallback und keinen automatischen Anbieterwechsel.
+Die neuen Adapter verwenden Fähigkeitsfilter und deklarierte Präferenzstufen
+für Claude-, GPT-, o-Serien- und Gemini-Modelle. Sonstige geeignete Modelle
+können eindeutig oder über `-FrontierModel`/`-FastModel` gewählt werden.
+Mehrdeutige Stufen und fehlende Fähigkeiten blockieren. Ein Modell darf mehrere
+Rollen übernehmen. Keine stille Ersatzwahl bei Fehlern und kein Anbieterwechsel.
+
+*New adapters use capability filters and declared preference tiers for Claude,
+GPT, o-series and Gemini. Other capable models can be selected uniquely or with
+exact model parameters. Ambiguous tiers and missing capabilities block. One
+model may serve multiple roles. No silent error fallback or provider switch.*
 
 ### Aufrufe
 
@@ -183,16 +190,23 @@ Authoring (`64`).
 The remote repository never stores personal model availability. Only roles,
 adapters, and selection rules are versioned. Concrete bindings remain local.
 Structured enumeration, name-only enumeration, candidate validation, and
-configured-only adapters are reported honestly. Unknown or ambiguous mappings
-fail closed, and no provider switch happens silently.
+configured-only adapters are reported honestly. Missing capabilities and
+ambiguous mappings fail closed. New adapters support broad role selection;
+Codex and Antigravity remain unchanged. No provider switch happens silently.
 
 The second command in the invocation block refreshes, for example, a local
 Codex binding only after explicit authorization.
 
 ## Installation
 
+DE: Der folgende Befehl zeigt das spätere Release-Ziel. Kandidat v0.2.0 ist
+noch nicht veröffentlicht; in diesem PR wird nichts installiert.
+
+EN: The following command shows the future release target. Candidate v0.2.0
+has not been published; this PR performs no installation.
+
 ```bash
-specify preset add --from https://github.com/hindermath/spec-kit-preset-model-routing-governance/archive/refs/tags/v0.1.7.zip --priority 61
+specify preset add --from https://github.com/hindermath/spec-kit-preset-model-routing-governance/archive/refs/tags/v0.2.0.zip --priority 61
 ```
 
 License: MIT.

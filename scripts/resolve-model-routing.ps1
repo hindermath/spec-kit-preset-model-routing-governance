@@ -29,6 +29,26 @@
 .PARAMETER DiscoveryFixture
     Nur fuer deterministische Tests: JSON-Modellinventar statt Provideraufruf.
 
+.PARAMETER SdkModulePath
+    DE: Absoluter Einstiegspunkt des bereits installierten Claude-/Copilot-SDKs.
+    EN: Absolute entry point of an already installed Claude/Copilot SDK.
+
+.PARAMETER OpenCodeServerUrl
+    DE: Bereits gestarteter lokaler OpenCode-Server; nur HTTP-Loopback erlaubt.
+    EN: Already running local OpenCode server; HTTP loopback only.
+
+.PARAMETER OpenCodeProvider
+    DE: Ausdruecklich gewaehlter verbundener OpenCode-Provider.
+    EN: Explicitly selected connected OpenCode provider.
+
+.PARAMETER FrontierModel
+    DE: Optionale exakte Auswahl aus der Discovery fuer die drei anspruchsvollen Rollen.
+    EN: Optional exact discovered model for the three demanding roles.
+
+.PARAMETER FastModel
+    DE: Optionale exakte Auswahl aus der Discovery fuer schnelle Aufgaben.
+    EN: Optional exact discovered model for fast tasks.
+
 .EXAMPLE
     pwsh -NoProfile -File scripts/resolve-model-routing.ps1 -Action Status -Harness Codex
 
@@ -47,6 +67,11 @@ param(
     [string] $ConfigPath = '',
     [string] $RoutingRoot = '',
     [string] $DiscoveryFixture = '',
+    [string] $SdkModulePath = '',
+    [string] $OpenCodeServerUrl = '',
+    [string] $OpenCodeProvider = '',
+    [string] $FrontierModel = '',
+    [string] $FastModel = '',
 
     [ValidateSet('Text', 'Json')]
     [string] $OutputFormat = 'Text'
@@ -58,10 +83,13 @@ $ErrorActionPreference = 'Stop'
 $script:Harnesses = [ordered]@{
     Codex = [ordered]@{ executable = 'codex'; discoveryMode = 'Enumerate' }
     Antigravity = [ordered]@{ executable = 'agy'; discoveryMode = 'EnumerateNames' }
-    Claude = [ordered]@{ executable = 'claude'; discoveryMode = 'ValidateCandidate' }
-    Copilot = [ordered]@{ executable = 'copilot'; discoveryMode = 'ValidateCandidate' }
-    OpenCode = [ordered]@{ executable = 'opencode'; discoveryMode = 'ConfiguredOnly' }
+    Claude = [ordered]@{ executable = 'claude'; discoveryMode = 'Enumerate' }
+    Copilot = [ordered]@{ executable = 'copilot'; discoveryMode = 'Enumerate' }
+    OpenCode = [ordered]@{ executable = 'opencode'; discoveryMode = 'Enumerate' }
 }
+
+# DE/EN: Load the additive adapters only; legacy discovery/selection/rendering stays intact.
+. (Join-Path $PSScriptRoot 'adapters/new-harnesses.ps1')
 
 function Assert-MRCondition {
     param([Parameter(Mandatory)][bool] $Condition, [Parameter(Mandatory)][string] $Message)
@@ -232,11 +260,15 @@ function Get-MRModels {
     if (-not [string]::IsNullOrWhiteSpace($Fixture)) {
         $fixtureData = Read-MRJson ([IO.Path]::GetFullPath($Fixture))
         Assert-MRCondition ($fixtureData.models -is [object[]]) 'DiscoveryFixture.models muss ein Array sein.'
+        if ($Family -in @('Claude', 'Copilot', 'OpenCode')) {
+            return @(ConvertTo-MRDiscoveredModel $Family $fixtureData)
+        }
         return @($fixtureData.models)
     }
     switch ($Family) {
         'Codex' { return @(Invoke-MRCodexDiscovery) }
         'Antigravity' { return @(Invoke-MRAntigravityDiscovery) }
+        { $_ -in @('Claude', 'Copilot', 'OpenCode') } { return @(Invoke-MRNewDiscovery $Family) }
         default { return @() }
     }
 }
@@ -248,6 +280,7 @@ function Test-MRReasoning {
 
 function Select-MRModels {
     param([Parameter(Mandatory)][string] $Family, [Parameter(Mandatory)][object[]] $Models)
+    if ($Family -in @('Claude', 'Copilot', 'OpenCode')) { return Select-MRDiscoveredModel $Family $Models }
     Assert-MRCondition ($Models.Count -gt 0) "Keine Modelle fuer $Family erkannt."
     if ($Family -eq 'Codex') {
         $frontier = @($Models | Where-Object { [bool] $_.isDefault })
@@ -286,6 +319,7 @@ function New-MRProfile {
         [Parameter(Mandatory)][hashtable] $Model,
         [Parameter(Mandatory)][string] $Effort
     )
+    if ($Family -in @('Claude', 'Copilot', 'OpenCode')) { return New-MRAdapterProfile $Family $Role $Model $Effort }
     $executable = [string] $script:Harnesses[$Family].executable
     if ($Family -eq 'Codex') {
         $preflightArguments = @('exec', '--ephemeral', '--model', '{model}', '--config', 'model_reasoning_effort="{reasoningEffort}"', '--sandbox', 'read-only', '--cd', '{worktree}', 'Reply exactly MODEL_READY without using tools.')
@@ -349,15 +383,31 @@ $ConfigPath = [IO.Path]::GetFullPath($ConfigPath)
 $resolvedHarness = Resolve-MRHarness $Harness $ConfigPath
 $adapter = $script:Harnesses[$resolvedHarness]
 $executable = [string] $adapter.executable
-Assert-MRCondition ($null -ne (Get-Command $executable -ErrorAction SilentlyContinue)) "Harness executable fehlt: $executable"
-$version = Get-MRCommandVersion $executable
-$models = @(Get-MRModels $resolvedHarness $DiscoveryFixture)
+$isNewHarness = $resolvedHarness -in @('Claude', 'Copilot', 'OpenCode')
+$version = 'Unknown'
+if (-not $isNewHarness) {
+    Assert-MRCondition ($null -ne (Get-Command $executable -ErrorAction SilentlyContinue)) "Harness executable fehlt: $executable"
+    $version = Get-MRCommandVersion $executable
+}
+# Preserve the legacy error path; new adapter failures return the documented Blocked result.
+if (-not $isNewHarness) { $models = @(Get-MRModels $resolvedHarness $DiscoveryFixture) } else { $models = @() }
 $mode = [string] $adapter.discoveryMode
 $catalogHash = Get-MRCatalogHash $RoutingRoot
 
 try {
+    if ($isNewHarness) {
+        Assert-MRCondition ($null -ne (Get-Command $executable -ErrorAction SilentlyContinue)) "Harness executable fehlt: $executable"
+        $version = Get-MRCommandVersion $executable
+        if (-not $DiscoveryFixture) { Test-MRNewCli $resolvedHarness }
+        $models = @(Get-MRModels $resolvedHarness $DiscoveryFixture)
+    }
+    Assert-MRCondition ($isNewHarness -or (-not $FrontierModel -and -not $FastModel)) 'Exact model overrides apply only to Claude, Copilot and OpenCode.'
     $selection = Select-MRModels $resolvedHarness $models
     $candidate = New-MRConfig $resolvedHarness $version $mode $selection $catalogHash
+    if ($isNewHarness) {
+        $candidate.generatedBy = 'model-routing-governance/0.2.0'
+        $candidate.selectionPolicySha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot 'adapters/selection-policy.json') -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
     $status = if (Test-Path -LiteralPath $ConfigPath -PathType Leaf) {
         $existing = Read-MRJson $ConfigPath
         if ([string] $existing.schemaVersion -ne '2.0') {
@@ -377,6 +427,11 @@ try {
                 catalogSha256 = [string] $candidate.catalogSha256
                 profiles = $candidate.profiles
             } | ConvertTo-Json -Depth 30 -Compress
+            if ($isNewHarness) {
+                $existingHash = if ($existing.ContainsKey('selectionPolicySha256')) { [string] $existing.selectionPolicySha256 } else { '' }
+                $existingComparable += $existingHash
+                $candidateComparable += [string] $candidate.selectionPolicySha256
+            }
             if ($existingComparable -ceq $candidateComparable) { 'Aligned' } else { 'RefreshRequired' }
         }
     } else { 'RefreshRequired' }

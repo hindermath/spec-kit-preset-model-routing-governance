@@ -1,10 +1,10 @@
 # Nutzungsleitfaden: model-routing-governance
 
-<!-- current-package: 0.1.7 -->
+<!-- current-package: 0.2.0 -->
 
-Paketkennung: **v0.1.7**. [Vorbereitung und Veröffentlichungsgrenze](release-0.1.7-validation.md). Die Release-Seite und der externe Archivnachweis belegen die Veröffentlichung, nicht dieser Vorbereitungsstand. Frühere Versionsnachweise unten bleiben historisch.
+Paketkennung: **v0.2.0**. [Vorbereitung und Veröffentlichungsgrenze](release-0.2.0-validation.md). Die Release-Seite und der externe Archivnachweis belegen die Veröffentlichung, nicht dieser Vorbereitungsstand. Frühere Versionsnachweise unten bleiben historisch.
 
-<span lang="en">Package identity: v0.1.7. The release page and external archive evidence prove publication, not this preparation snapshot. Earlier version records below remain historical.</span>
+<span lang="en">Package identity: v0.2.0. The release page and external archive evidence prove publication, not this preparation snapshot. Earlier version records below remain historical.</span>
 
 [Release-Abschluss und Verbesserungsprofil / Publication closeout and improvement profile](release-0.1.6-validation.md).
 
@@ -39,7 +39,7 @@ Eingabe: Benenne den vorhandenen Harness und ob du nur Status oder einen lokalen
 $speckit-model-routing-status — nur vorhandene Bindung und gemeldete Grenzen erklären; keine Modelle aufrufen, kein Refresh und kein Anbieterwechsel.
 ~~~
 
-3. Status oder konkreter Blocker mit nächster Aktion. Der stabile Resolver erzeugt automatische Profile nur für Codex und Antigravity, nicht für Claude, Copilot oder OpenCode.
+3. Status oder konkreter Blocker mit nächster Aktion. Der Kandidat unterstützt zusätzlich Claude, Copilot und OpenCode. Voraussetzungen und Grenzen stehen unter [Automatische Adapter](automatic-discovery.md).
 4. Prüfe Ergebnis und dokumentierte nächste Aktion. Änderungen, Reparatur, Feature-Ausführung und Lieferung brauchen jeweils die passende Autorität. Ein grüner technischer Check ist keine menschliche Abnahme.
 
 Lesende Installationsprüfung im initialisierten Ziel-Repository:
@@ -80,7 +80,7 @@ Paketversion, Schema-Version und historischer Feldtest sind verschiedene Angaben
 
 ## Fehlerhilfe und sichere nächste Aktion
 
-Bei Claude, Copilot oder OpenCode keine automatische Zuordnung versprechen. Die Auswahlgrenzen des stabilen Releases akzeptieren oder einen eigenen Auftrag klären; keine Adapter-Neuentwicklung in dieser Doku-Runde.
+Bei Claude und Copilot den vorhandenen SDK-Einstiegspunkt angeben. Bei OpenCode einen bereits laufenden Loopback-Server und einen verbundenen Provider benennen. Fehlende Metadaten oder mehrere passende Modelle blockieren; siehe [Fehlerhilfe für neue Adapter](automatic-discovery.md).
 
 Fehlt ein Command oder eine Vorlage, zuerst preset info und das unten verlinkte Manifest prüfen. Mindestwerkzeuge und aktive Installation prüfen. Unklarheit mit der Betreuung klären; weder Policy ändern, Validatoren abschalten noch einen nicht ausgeführten Test behaupten. Eine Schutzsperre bleibt eine Sperre.
 

@@ -1,8 +1,8 @@
 # User guide: model-routing-governance
 
-<!-- current-package: 0.1.7 -->
+<!-- current-package: 0.2.0 -->
 
-Package identity: **v0.1.7**. [Preparation and publication boundary](release-0.1.7-validation.md). The release page, not this preparation snapshot, proves publication and the external archive hash. Earlier version records below remain historical.
+Package identity: **v0.2.0**. [Preparation and publication boundary](release-0.2.0-validation.md). The release page, not this preparation snapshot, proves publication and the external archive hash. Earlier version records below remain historical.
 
 [Release-Abschluss und Verbesserungsprofil / Publication closeout and improvement profile](release-0.1.6-validation.md).
 
@@ -37,7 +37,7 @@ Input: Name the existing harness and whether you want status only or a local ref
 $speckit-model-routing-status — explain the existing binding and reported limits only; no model invocation, refresh or provider switch.
 ~~~
 
-3. Status or a specific blocker with a next action. The stable resolver generates automatic profiles only for Codex and Antigravity, not Claude, Copilot or OpenCode.
+3. Status or a specific blocker with a next action. The candidate also supports Claude, Copilot and OpenCode. See [automatic adapters](automatic-discovery.EN.md) for prerequisites and limits.
 4. Check the result and recorded next action. Changes, repair, feature execution and delivery each need their applicable authority. A passing technical check is not human acceptance.
 
 Read-only installation check in the initialized target repository:
@@ -78,7 +78,7 @@ Package version, schema version and historical field test are different facts. E
 
 ## Troubleshooting and safe next action
 
-Do not promise automatic mapping for Claude, Copilot or OpenCode. Respect stable-release limits or clarify a separate task; no adapter redevelopment in this documentation round.
+For Claude and Copilot, supply an existing SDK entry point. For OpenCode, identify an already running loopback server and a connected provider. Missing metadata or multiple matching models block selection; see [new-adapter troubleshooting](automatic-discovery.EN.md).
 
 If a command or template is missing, inspect preset info and the manifest below. Check the documented minimum tools and enabled installation. Resolve ambiguity with the maintainer; do not change policy, disable validators or claim an unperformed test. A safety blocker remains a blocker.
 
