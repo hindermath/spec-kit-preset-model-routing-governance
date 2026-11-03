@@ -1,10 +1,10 @@
 # Model Routing Governance
 
-<!-- current-package: 0.2.2 -->
+<!-- current-package: 0.2.3 -->
 
-Paketkennung: **v0.2.2**. [Vorbereitung und Veröffentlichungsgrenze](docs/release-0.2.2-validation.md). Die Release-Seite und der externe Archivnachweis belegen die Veröffentlichung, nicht dieser Vorbereitungsstand. Frühere Versionsnachweise unten bleiben historisch.
+Paketkennung: **v0.2.3**. [Vorbereitung und Veröffentlichungsgrenze](docs/release-0.2.3-validation.md). Die Release-Seite und der externe Archivnachweis belegen die Veröffentlichung, nicht dieser Vorbereitungsstand. Frühere Versionsnachweise unten bleiben historisch.
 
-<span lang="en">Package identity: v0.2.2. The release page and external archive evidence prove publication, not this preparation snapshot. Earlier version records below remain historical.</span>
+<span lang="en">Package identity: v0.2.3. The release page and external archive evidence prove publication, not this preparation snapshot. Earlier version records below remain historical.</span>
 
 [Release-Abschluss und Verbesserungsprofil / Publication closeout and improvement profile](docs/release-0.1.6-validation.md).
 
@@ -75,7 +75,7 @@ Leserpfad / Reader path: [Installation](#installation) → [Rollen](#rollen) →
 [English](#english). Fehlende Tools oder mehrdeutige Discovery klären, keinen
 Fallback erfinden. / Resolve reported tool/discovery blockers without guessing.
 
-Neue Adapter / New adapters: [Deutsch](docs/automatic-discovery.md) · [English](docs/automatic-discovery.EN.md). **v0.2.2 ist ein Entwicklungskandidat / is a development candidate.** Kein Release, keine Installation oder Verteilung / no release, installation or rollout.
+Neue Adapter / New adapters: [Deutsch](docs/automatic-discovery.md) · [English](docs/automatic-discovery.EN.md). **v0.2.3 ist ein Entwicklungskandidat / is a development candidate.** Kein Release, keine Installation oder Verteilung / no release, installation or rollout.
 
 Read-only Installationsprüfung / Read-only installation checks:
 
@@ -199,14 +199,14 @@ Codex binding only after explicit authorization.
 
 ## Installation
 
-DE: Der folgende Befehl zeigt das spätere Release-Ziel. Kandidat v0.2.2 ist
+DE: Der folgende Befehl zeigt das spätere Release-Ziel. Kandidat v0.2.3 ist
 noch nicht veröffentlicht; in diesem PR wird nichts installiert.
 
-EN: The following command shows the future release target. Candidate v0.2.2
+EN: The following command shows the future release target. Candidate v0.2.3
 has not been published; this PR performs no installation.
 
 ```bash
-specify preset add --from https://github.com/hindermath/spec-kit-preset-model-routing-governance/archive/refs/tags/v0.2.2.zip --priority 61
+specify preset add --from https://github.com/hindermath/spec-kit-preset-model-routing-governance/archive/refs/tags/v0.2.3.zip --priority 61
 ```
 
 License: MIT.

@@ -27,7 +27,8 @@ function Test-ReleasePreparation {
     try {
         $testCompatibilityValid = $Id -cne 'model-routing-governance' -or
             ($PackageVersion -ceq '0.2.1' -and $Value.changeKind -ceq 'PowerShellTestCompatibility' -and -not [string]::IsNullOrWhiteSpace($Value.authorizationReference)) -or
-            ($PackageVersion -ceq '0.2.2' -and $Value.changeKind -ceq 'HarnessResultTransport' -and -not [string]::IsNullOrWhiteSpace($Value.authorizationReference))
+            ($PackageVersion -ceq '0.2.2' -and $Value.changeKind -ceq 'HarnessResultTransport' -and -not [string]::IsNullOrWhiteSpace($Value.authorizationReference)) -or
+            ($PackageVersion -ceq '0.2.3' -and $Value.changeKind -ceq 'CanonicalAdapterPath' -and -not [string]::IsNullOrWhiteSpace($Value.authorizationReference))
         $null = [DateTimeOffset]::Parse([string]$Value.preparedAt, [Globalization.CultureInfo]::InvariantCulture)
         return $testCompatibilityValid -and $Value.schemaVersion -eq 1 -and $Value.presetId -ceq $Id -and
             $Value.packageVersion -ceq $PackageVersion -and
@@ -44,6 +45,9 @@ function Test-ReleasePreparation {
                 -not [string]::IsNullOrWhiteSpace($Value.authorizationReference)) -or
                 ($Id -ceq 'model-routing-governance' -and $PackageVersion -ceq '0.2.2' -and
                 $Value.changeKind -ceq 'HarnessResultTransport' -and
+                -not [string]::IsNullOrWhiteSpace($Value.authorizationReference)) -or
+                ($Id -ceq 'model-routing-governance' -and $PackageVersion -ceq '0.2.3' -and
+                $Value.changeKind -ceq 'CanonicalAdapterPath' -and
                 -not [string]::IsNullOrWhiteSpace($Value.authorizationReference)) -or
                 ($Value.metadataCorrectionApproved -is [bool] -and
                 $Value.metadataCorrectionApproved -and -not [string]::IsNullOrWhiteSpace($Value.authorizationReference))) -and
@@ -112,7 +116,7 @@ $packageVersion = [regex]::Match($manifest, '(?m)^  version: "([^"]+)"').Groups[
 $fixture = Get-Content (Join-Path $PSScriptRoot 'fixtures/documentation-package.json') -Raw | ConvertFrom-Json
 $version = $fixture.publicationEvidenceVersion
 $expectedMetadataCorrection = $id -cin @('intake-authoring-governance', 'intake-sequencing-governance') -or
-    ($id -ceq 'model-routing-governance' -and $packageVersion -in @('0.2.0','0.2.2'))
+    ($id -ceq 'model-routing-governance' -and $packageVersion -in @('0.2.0','0.2.2','0.2.3'))
 Assert-ReleaseStatus ($fixture.version -ceq $packageVersion -and [version]$version -lt [version]$packageVersion) 'explicit earlier publication record, not current-package publication'
 $preparation = Get-Content (Join-Path $root "docs/release-$packageVersion-preparation.json") -Raw | ConvertFrom-Json
 Assert-ReleaseStatus ($preparation.presetId -ceq $id -and $preparation.packageVersion -ceq $packageVersion -and
