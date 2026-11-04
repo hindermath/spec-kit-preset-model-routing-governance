@@ -57,7 +57,7 @@ function Test-MRNewCli {
     $text = Get-MRNewCliHelp $executable $arguments
     $required = switch ($Family) {
         Claude { @('--model', '--effort', '--permission-mode', '--tools', '--strict-mcp-config', '--mcp-config', '--no-session-persistence', '--print') }
-        Copilot { @('--model', '--available-tools', '--deny-tool', '--disable-builtin-mcps', '--no-auto-update', '--no-ask-user', '--prompt') }
+        Copilot { @('--model', '--available-tools', '--deny-tool', '--disable-builtin-mcps', '--no-auto-update', '--no-ask-user', '--prompt', '--silent') }
         OpenCode { @('--model', '--agent') }
     }
     foreach ($flag in $required) {
@@ -328,18 +328,19 @@ function New-MRAdapterProfile {
     param([string] $Family, [string] $Role, [hashtable] $Model, [string] $Effort)
     $readOnly = $Role -eq 'fast-mechanical'
     $effortArgs = if ($Effort -eq 'default' -or ($Family -eq 'OpenCode' -and $script:MROpenCodeVariantInModel)) { @() } else { @([string] $script:MREffortFlags[$Family], '{reasoningEffort}') }
-    $resultInstruction = 'Return the machine-readable autonomous phase result as the only standard-output content. Use autonomous-phase-result-template.json. Do not write files.'
+    $resultInstruction = 'Return the machine-readable autonomous phase result as the only standard-output content. Use autonomous-phase-result-template.json. Do not write the result file yourself; project-file writes remain governed by the task and this profile.'
     switch ($Family) {
         Claude {
             $common = @('--print', '--no-session-persistence', '--model', '{model}') + $effortArgs
-            $preflight = $common + @('--permission-mode', 'plan', '--tools', '', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', 'Reply exactly MODEL_READY without using tools.')
+            # --mcp-config accepts multiple values, so -- is required before the positional prompt.
+            $preflight = $common + @('--permission-mode', 'plan', '--tools', '', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--', 'Reply exactly MODEL_READY without using tools.')
             $mode = if ($readOnly) { 'plan' } else { 'acceptEdits' }
             $harnessArguments = $common + @('--permission-mode', $mode, ('{prompt}' + "`n`n" + $resultInstruction))
         }
         Copilot {
-            $common = @('--model', '{model}', '--no-auto-update', '--no-ask-user') + $effortArgs
+            $common = @('--model', '{model}', '--no-auto-update', '--no-ask-user', '--silent') + $effortArgs
             $preflight = $common + @('--available-tools', 'view', '--deny-tool', 'write,shell', '--disable-builtin-mcps', '--prompt', 'Reply exactly MODEL_READY without using tools.')
-            $harnessArguments = $common + $(if ($readOnly) { @('--available-tools', 'view', '--deny-tool', 'write,shell', '--disable-builtin-mcps') } else { @() }) + @('--prompt', ('{prompt}' + "`n`n" + $resultInstruction))
+            $harnessArguments = $common + $(if ($readOnly) { @('--available-tools', 'view', '--deny-tool', 'write,shell', '--disable-builtin-mcps') } else { @() }) + @('--output-format', 'json', '--prompt', ('{prompt}' + "`n`n" + $resultInstruction))
         }
         OpenCode {
             $modelArgument = if ($Effort -ne 'default' -and $script:MROpenCodeVariantInModel) { '{model}#{reasoningEffort}' } else { '{model}' }
@@ -352,7 +353,9 @@ function New-MRAdapterProfile {
     $executable = [string] $script:Harnesses[$Family].executable
     # Repository-relative canonical path keeps root/preset resolution byte-identical.
     $resultAdapter = '.specify/presets/model-routing-governance/scripts/adapters/invoke-harness-with-result.ps1'
-    $arguments = @('-NoProfile', '-File', $resultAdapter, '-OutputFile', '{outputFile}', '-Executable', $executable, '--') + $harnessArguments
+    $protocol = if ($Family -eq 'Copilot') { 'CopilotJsonl' } else { 'Plain' }
+    $arguments = @('-NoProfile', '-File', $resultAdapter, '-OutputFile', '{outputFile}', '-Executable', $executable,
+        '-OutputProtocol', $protocol, '-HarnessArgumentsJson', ($harnessArguments | ConvertTo-Json -Compress))
     return [ordered]@{
         routingRole = $Role; agentFamily = $Family; model = $Model.model
         reasoningEffort = $Effort; executable = 'pwsh'

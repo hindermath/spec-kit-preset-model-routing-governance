@@ -72,9 +72,14 @@ historische Muster erhalten; zusätzlich werden aktuelle
 weiterhin `gemini-*-flash-medium`.
 
 Claude, Copilot und OpenCode geben das strukturierte Phasenergebnis auf der
-Standardausgabe zurück. `invoke-harness-with-result.ps1` akzeptiert nur ein
+Standardausgabe zurück. `invoke-harness-with-result.ps1` erhält die native
+CLI-Argumentliste als ein JSON-kodiertes Array. Für Copilot extrahiert er aus
+dem nativen JSONL-Ereignisstrom die letzte `assistant.message` als Abschluss.
+Anschließend akzeptiert er nur ein
 erfolgreiches JSON-Objekt und schreibt es atomar an den vom autonomen Runner
-vorgegebenen `{outputFile}`-Pfad. Dadurch funktionieren auch lesende Rollen,
+vorgegebenen `{outputFile}`-Pfad. Die Ergebnisanweisung verbietet nur, diese
+Runner-Ergebnisdatei selbst zu schreiben; autorisierte Projektänderungen der
+Aufgabe bleiben erlaubt. Dadurch funktionieren auch lesende Rollen,
 ohne dem Harness Dateischreibrechte zu erteilen. Leere, fehlerhafte oder
 nicht strukturierte Ausgabe erzeugt keine Ergebnisdatei.
 
@@ -144,7 +149,9 @@ OpenCode verwendet entweder den erkannten Schalter `--variant` oder die von
 stdout und stderr erfasst, von ANSI-/Steuerzeichen bereinigt und anschließend
 auf ganze Flag-Tokens geprüft. Fehlt bei Copilot beides, bleibt Discovery
 blockiert. Der Preflight bittet um `MODEL_READY`; Claude deaktiviert
-Tools/MCP, Copilot begrenzt Tools auf Lesen, OpenCode nutzt `plan`.
+Tools/MCP und trennt den positionalen Prompt ausdrücklich von der variadischen
+MCP-Konfiguration, Copilot begrenzt Tools auf Lesen und hält mit `--silent`
+Diagnosebanner von der maschinenlesbaren Standardausgabe fern, OpenCode nutzt `plan`.
 Fast-Profile verwenden ebenfalls Plan-/Lesemodi. Implementierungsprofile
 verwenden Claude `acceptEdits`, OpenCode `build` beziehungsweise Copilots
 bestehende Berechtigungsprüfung. Kein Bypass und keine pauschale Toolfreigabe.

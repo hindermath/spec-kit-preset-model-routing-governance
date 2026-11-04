@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 
 const resolver = resolve('scripts/resolve-model-routing.ps1');
-const flags = '--model --effort --reasoning-effort --permission-mode --tools --strict-mcp-config --mcp-config --no-session-persistence --print --available-tools --deny-tool --disable-builtin-mcps --no-auto-update --no-ask-user --prompt --variant --agent';
+const flags = '--model --effort --reasoning-effort --permission-mode --tools --strict-mcp-config --mcp-config --no-session-persistence --print --available-tools --deny-tool --disable-builtin-mcps --no-auto-update --no-ask-user --prompt --silent --variant --agent';
 
 async function writeCli(dir, cli, help, ansi = false) {
   const windows = process.platform === 'win32';
@@ -17,6 +17,12 @@ async function writeCli(dir, cli, help, ansi = false) {
       ? `#!/bin/sh\nprintf '\\033[31m%s\\033[0m\\n' 'fixture 1.0 ${help}'\n`
       : `#!/bin/sh\nprintf '%s\\n' 'fixture 1.0 ${help}'\n`;
   await writeFile(join(dir, cli + (windows ? '.cmd' : '')), body, { mode: 0o755 });
+}
+
+function nativeHarnessArguments(profile) {
+  const index = profile.arguments.indexOf('-HarnessArgumentsJson');
+  assert.ok(index >= 0 && index + 1 < profile.arguments.length, 'missing JSON harness argument transport');
+  return JSON.parse(profile.arguments[index + 1]);
 }
 
 async function withFixture(run) {
@@ -65,16 +71,16 @@ test('actual Node/PowerShell bridge transports Claude and Copilot metadata witho
       assert.equal(reply.result.roles[0].model, family === 'Claude' ? 'sonnet' : 'gpt-99');
       if (family === 'Copilot') {
         const profile = JSON.parse(await readFile(join(dir, 'profiles.json'), 'utf8'));
-        assert.ok(profile.profiles['copilot-frontier-auto'].arguments.includes('--reasoning-effort'));
+        assert.ok(nativeHarnessArguments(profile.profiles['copilot-frontier-auto']).includes('--reasoning-effort'));
       }
     }
-    const copilotCommon = '--model --available-tools --deny-tool --disable-builtin-mcps --no-auto-update --no-ask-user --prompt';
+    const copilotCommon = '--model --available-tools --deny-tool --disable-builtin-mcps --no-auto-update --no-ask-user --prompt --silent';
     await writeCli(dir, 'copilot', `${copilotCommon} --effort`);
     const legacyFlag = await execute(['-Action', 'Refresh', '-Harness', 'Copilot', '-SdkModulePath', modulePath]);
     assert.equal(legacyFlag.code, 0, legacyFlag.out + legacyFlag.err);
     let profile = JSON.parse(await readFile(join(dir, 'profiles.json'), 'utf8'));
-    assert.ok(profile.profiles['copilot-frontier-auto'].arguments.includes('--effort'));
-    assert.ok(!profile.profiles['copilot-frontier-auto'].arguments.includes('--reasoning-effort'));
+    assert.ok(nativeHarnessArguments(profile.profiles['copilot-frontier-auto']).includes('--effort'));
+    assert.ok(!nativeHarnessArguments(profile.profiles['copilot-frontier-auto']).includes('--reasoning-effort'));
     await writeCli(dir, 'copilot', copilotCommon);
     const missingEffort = await execute(['-Action', 'Status', '-Harness', 'Copilot', '-SdkModulePath', modulePath]);
     assert.equal(missingEffort.code, 3);
@@ -138,7 +144,7 @@ test('OpenCode supports current v2 and legacy provider metadata without weakenin
       assert.equal(reply.code, 0, reply.out + reply.err);
       assert.equal(reply.result.roles[0].model, 'anthropic/gemini-99-pro');
       let parsedProfile = JSON.parse(await readFile(join(dir, 'profiles.json'), 'utf8'));
-      assert.ok(parsedProfile.profiles['opencode-frontier-auto'].arguments.includes('--variant'));
+      assert.ok(nativeHarnessArguments(parsedProfile.profiles['opencode-frontier-auto']).includes('--variant'));
       const before = await readFile(join(dir, 'profiles.json'), 'utf8');
       activation = 'disabled';
       assert.equal((await execute(args)).code, 3);
@@ -166,7 +172,7 @@ test('OpenCode supports current v2 and legacy provider metadata without weakenin
       const currentCli = await execute(args);
       assert.equal(currentCli.code, 0, currentCli.out + currentCli.err);
       parsedProfile = JSON.parse(await readFile(join(dir, 'profiles.json'), 'utf8'));
-      const currentArgs = parsedProfile.profiles['opencode-frontier-auto'].arguments;
+      const currentArgs = nativeHarnessArguments(parsedProfile.profiles['opencode-frontier-auto']);
       assert.ok(currentArgs.includes('{model}#{reasoningEffort}'));
       assert.ok(!currentArgs.includes('--variant'));
     });

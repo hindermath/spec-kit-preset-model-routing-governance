@@ -108,9 +108,24 @@ try {
         foreach ($runnerProfileData in $profileData.profiles.Values) {
             Assert-Adapter ($runnerProfileData.executable -ceq 'pwsh') "$family profile bypasses the result adapter."
             Assert-Adapter ('{outputFile}' -cin $runnerProfileData.arguments) "$family profile lacks the runner result path."
+            Assert-Adapter ('-HarnessArgumentsJson' -cin $runnerProfileData.arguments) "$family profile lacks an unambiguous JSON argument transport."
+            $jsonIndex = [Array]::IndexOf([object[]]$runnerProfileData.arguments, '-HarnessArgumentsJson')
+            $decodedHarnessArguments = @($runnerProfileData.arguments[$jsonIndex + 1] | ConvertFrom-Json)
+            Assert-Adapter ($decodedHarnessArguments.Count -gt 0) "$family JSON argument transport is empty."
+            Assert-Adapter (($decodedHarnessArguments -join "`n") -match 'Do not write the result file yourself; project-file writes remain governed') "$family result instruction must not prohibit authorized project writes."
             Assert-Adapter (@($runnerProfileData.arguments | Where-Object { $_ -like '*invoke-harness-with-result.ps1' }).Count -eq 1) "$family profile lacks the structured-output transport."
             Assert-Adapter ('.specify/presets/model-routing-governance/scripts/adapters/invoke-harness-with-result.ps1' -cin $runnerProfileData.arguments) "$family profile stores a machine-specific adapter path."
             Assert-Adapter ($runnerProfileData.preflight.executable -ceq $family.ToLowerInvariant()) "$family preflight no longer invokes the harness directly."
+            if ($family -ceq 'Claude') {
+                $mcpIndex = [Array]::IndexOf([object[]]$runnerProfileData.preflight.arguments, '--mcp-config')
+                Assert-Adapter ($mcpIndex -ge 0 -and $runnerProfileData.preflight.arguments[$mcpIndex + 2] -ceq '--') 'Claude preflight must terminate variadic MCP arguments before the prompt.'
+            }
+            if ($family -ceq 'Copilot') {
+                Assert-Adapter ('--silent' -cin $runnerProfileData.preflight.arguments) 'Copilot preflight must keep diagnostic banners off standard output.'
+                Assert-Adapter ('--silent' -cin $decodedHarnessArguments) 'Copilot execution must return only the agent response on standard output.'
+                Assert-Adapter ('CopilotJsonl' -cin $runnerProfileData.arguments) 'Copilot profile must select the JSONL result protocol.'
+                Assert-Adapter ('--output-format' -cin $decodedHarnessArguments -and 'json' -cin $decodedHarnessArguments) 'Copilot execution must request JSONL output.'
+            }
         }
         $fastProfile = $profileData.profiles["$($family.ToLowerInvariant())-fast-auto"]
         Assert-Adapter ($fastProfile.reasoningEffort -ceq 'default' -and '{reasoningEffort}' -cnotin $fastProfile.arguments) "$family invented effort."

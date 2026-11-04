@@ -68,8 +68,12 @@ Historical `agy` patterns remain valid; current `claude-opus-*-high` and
 `gemini-*-flash-medium`.
 
 Claude, Copilot and OpenCode return the structured phase result on standard
-output. `invoke-harness-with-result.ps1` accepts only a successful JSON object
-and atomically writes it to the autonomous runner's `{outputFile}` path. This
+output. `invoke-harness-with-result.ps1` receives the native CLI argument list
+as one JSON-encoded array. For Copilot it extracts the last
+`assistant.message` from the native JSONL event stream as the final response, then accepts only a successful JSON object
+and atomically writes it to the autonomous runner's `{outputFile}` path. The
+result instruction only prohibits writing that runner result file directly;
+task-authorized project changes remain permitted. This
 also supports read-only roles without granting the harness file-write access.
 Empty, failed or unstructured output creates no result file.
 
@@ -136,7 +140,9 @@ detected; OpenCode uses either a detected `--variant` flag or the
 stderr in a bounded child process, stripped of ANSI/control sequences and then
 checked for whole flag tokens. Copilot stays blocked if neither spelling is
 present. Preflight requests `MODEL_READY`; Claude disables tools/MCP,
-Copilot restricts tools to reading, OpenCode uses `plan`. Fast profiles also use
+and explicitly separates the positional prompt from the variadic MCP
+configuration; Copilot restricts tools to reading and uses `--silent` to keep
+diagnostic banners off machine-readable standard output, while OpenCode uses `plan`. Fast profiles also use
 plan/read modes. Implementation profiles use Claude `acceptEdits`, OpenCode
 `build`, or Copilot's existing permission checks. No bypass or blanket tool
 approval. Vendor modes are **not OS sandboxes**. In particular, OpenCode agents,
