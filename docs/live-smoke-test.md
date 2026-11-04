@@ -115,6 +115,16 @@ geschrieben; ein spaeterer Haenger darf fruehere Ergebnisse nicht verlieren.
 Die Inventur oeffnet ausschliesslich regulaere Dateien: Unix-Pipes, Sockets
 und symbolische Links werden vor dem Hashen ausgeschlossen.
 
+Temporaerer Stamm, Prozessarbeitsverzeichnis und `PWD` verwenden physisch
+aufgeloeste Pfade. Insbesondere duerfen `/var` und `/private/var` unter macOS
+nicht zwischen Builds wechseln, weil dabei .NET-Runtime-Dateien verloren
+gehen koennen. `agy` erhaelt neben `command(*)` nur fuer den temporaeren
+Worktree `write_file(<physischer Pfad>)`; diese Freigabe schliesst Lesen ein
+und gilt ausschliesslich fuer die Sitzung.
+
+Der modellfreie Regressionstest dafuer lautet:
+`pwsh -NoProfile -File tests/test-live-smoke-dotnet.ps1` (.NET SDK 10).
+
 Bei einem fehlgeschlagenen Versuch sichert der Runner vor dem Cleanup
 redigiertes stdout/stderr fuer Preflight, Agent, Build und Run, das geparste
 boolesche Agentenergebnis sowie ein relatives Projektinventar. Fuer `.csproj`,

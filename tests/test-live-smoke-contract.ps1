@@ -59,7 +59,7 @@ param([Parameter(Mandatory)][AllowEmptyString()][string] $Value)
     Assert-SmokeContract ($child.exitCode -eq 0 -and $parts.Count -eq 3) 'JSON child argument transport'
     $workingSuffix = $working.Substring($temporary.Length)
     Assert-SmokeContract ($parts[0].EndsWith($workingSuffix,[StringComparison]::Ordinal) -and
-        $parts[1] -ceq $working -and $parts[2] -ceq '0') 'PWD and empty argument preservation'
+        $parts[1] -ceq (Resolve-MRSmokePhysicalPath $working) -and $parts[2] -ceq '0') 'PWD and empty argument preservation'
     $env:MODEL_ROUTING_SMOKE_TEST_SECRET = 'must-not-reach-child'
     try {
         $startInfo = New-MRSmokeProcessStartInfo -ChildScript $childScript -Executable 'pwsh' -Arguments @('-NoProfile') `
@@ -102,6 +102,18 @@ $child.Dispose()
     $agy = $baseProfile.Clone();$agy.arguments=@('--model','{model}','--effort','{reasoningEffort}','--mode','accept-edits','--print','{prompt}')
     $agyArguments = @(Expand-MRSmokeProfileArguments $agy $working (Join-Path $temporary 'agy.json') 'Antigravity' 'fixture prompt')
     Assert-SmokeContract ('--settings' -cin $agyArguments -and $agyArguments[-1] -ceq 'fixture prompt') 'agy session permission and prompt'
+    $settingsIndex = [Array]::IndexOf([object[]]$agyArguments,'--settings')
+    $agyPermissions = ($agyArguments[$settingsIndex + 1] | ConvertFrom-Json).permissions.allow
+    Assert-SmokeContract ($agyPermissions.Count -eq 2 -and 'command(*)' -cin $agyPermissions -and
+        "write_file($(Resolve-MRSmokePhysicalPath $working))" -cin $agyPermissions -and 'write_file(*)' -cnotin $agyPermissions) 'agy write permission is scoped to physical worktree'
+    if (-not $IsWindows) {
+        $alias = Join-Path $temporary 'directory alias'
+        [void](New-Item -ItemType SymbolicLink -Path $alias -Target $working)
+        Assert-SmokeContract ((Resolve-MRSmokePhysicalPath $alias) -ceq (Resolve-MRSmokePhysicalPath $working)) 'directory alias resolves to physical path'
+        $aliasedStart = New-MRSmokeProcessStartInfo -ChildScript $childScript -Executable pwsh -Arguments @('-NoProfile') -WorkingDirectory $alias -Environment @{PWD='wrong'}
+        Assert-SmokeContract ($aliasedStart.WorkingDirectory -ceq $aliasedStart.Environment['PWD'] -and
+            $aliasedStart.WorkingDirectory -ceq (Resolve-MRSmokePhysicalPath $working)) 'physical process directory and PWD cannot diverge'
+    }
     foreach ($family in @('Claude','Copilot','OpenCode')) {
         $runnerProfile = $baseProfile.Clone()
         $harnessArguments = switch ($family) {

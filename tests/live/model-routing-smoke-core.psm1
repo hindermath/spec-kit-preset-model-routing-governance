@@ -59,6 +59,21 @@ function Merge-MRSmokeSelectionOverride {
     return $Configuration
 }
 
+function Resolve-MRSmokePhysicalPath {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string] $Path)
+    $full = [IO.Path]::GetFullPath($Path)
+    $current = [IO.Path]::GetPathRoot($full)
+    foreach ($part in $full.Substring($current.Length).Split([char[]]@('/','\'),[StringSplitOptions]::RemoveEmptyEntries)) {
+        $current = Join-Path $current $part
+        $item = Get-Item -LiteralPath $current -Force
+        if ($null -ne $item.LinkTarget) { $current = Resolve-MRSmokePhysicalPath $item.ResolveLinkTarget($true).FullName }
+    }
+    return $current
+}
+
+Export-ModuleMember -Function Resolve-MRSmokePhysicalPath
+
 function New-MRSmokeProcessStartInfo {
     [CmdletBinding()]
     param(
@@ -69,6 +84,7 @@ function New-MRSmokeProcessStartInfo {
         [string[]] $RemovedEnvironment = @(),
         [hashtable] $Environment = @{}
     )
+    $WorkingDirectory = Resolve-MRSmokePhysicalPath $WorkingDirectory
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = (Get-Process -Id $PID).Path
     $start.WorkingDirectory = $WorkingDirectory
@@ -79,8 +95,8 @@ function New-MRSmokeProcessStartInfo {
         [void] $start.ArgumentList.Add($argument)
     }
     foreach ($name in $RemovedEnvironment) { [void] $start.Environment.Remove($name) }
-    $start.Environment['PWD'] = $WorkingDirectory
     foreach ($entry in $Environment.GetEnumerator()) { $start.Environment[[string]$entry.Key] = [string]$entry.Value }
+    $start.Environment['PWD'] = $WorkingDirectory
     return $start
 }
 
@@ -181,7 +197,9 @@ function Expand-MRSmokeProfileArguments {
         if ($Family -eq 'Antigravity') {
             $printIndex = [Array]::IndexOf([object[]]$arguments,'--print')
             if ($printIndex -lt 1) { throw 'agy print argument missing.' }
-            $arguments = @($arguments[0..($printIndex - 1)] + @('--settings','{"permissions":{"allow":["command(*)"]}}') + $arguments[$printIndex..($arguments.Count - 1)])
+            $permissionPath = Resolve-MRSmokePhysicalPath $Worktree
+            $settings = @{permissions=@{allow=@('command(*)',"write_file($permissionPath)")}} | ConvertTo-Json -Depth 5 -Compress
+            $arguments = @($arguments[0..($printIndex - 1)] + @('--settings',$settings) + $arguments[$printIndex..($arguments.Count - 1)])
         }
     }
     return $arguments

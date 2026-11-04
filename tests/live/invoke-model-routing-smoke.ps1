@@ -332,6 +332,7 @@ try {
     if (-not ((& dotnet --version).Trim().StartsWith('10.'))) { throw 'The live smoke test requires .NET SDK 10.' }
     $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) "model-routing-smoke-$([guid]::NewGuid().ToString('N'))"
     [void](New-Item -ItemType Directory -Path $temporaryRoot)
+    $temporaryRoot = Resolve-MRSmokePhysicalPath $temporaryRoot
     $sdkRoot = Join-Path $temporaryRoot 'sdk'
     $claudePackage = "$($configuration.sdk.claude.package)@$($configuration.sdk.claude.version)"
     $copilotPackage = "$($configuration.sdk.copilot.package)@$($configuration.sdk.copilot.version)"

@@ -111,6 +111,15 @@ discard earlier results.
 Inventory opens regular files only: Unix pipes, sockets and symbolic links
 are excluded before hashing.
 
+The temporary root, process working directory and `PWD` use physically resolved
+paths. In particular, switching between `/var` and `/private/var` on macOS
+between builds can lose .NET runtime files. Alongside `command(*)`, `agy`
+receives session-only `write_file(<physical path>)` permission scoped to the
+temporary worktree; this also grants read access there.
+
+Run the model-free regression with:
+`pwsh -NoProfile -File tests/test-live-smoke-dotnet.ps1` (.NET SDK 10).
+
 Before cleanup, a failed attempt records redacted stdout/stderr for preflight,
 agent, build and run, the parsed Boolean agent result, and a relative project
 inventory. Bounded text is included for `.csproj`, `Program.cs`,
