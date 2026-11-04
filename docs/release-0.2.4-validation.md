@@ -173,3 +173,51 @@ covers this hang. Output draining and process exit now share a deadline;
 completed attempts are immediately checkpointed atomically. Routing policy
 was unchanged. The final FIFO correction was checked offline, not in another
 provider run.
+
+## Erfolgreicher Abschlusslauf / Successful final run
+
+DE: Der abschliessende Live-Test am 2026-11-04 pruefte Commit
+`0699fa50aed88e316cebe37ec39a5f2de90195af` mit versionierten Defaults,
+interaktiven Anmeldungen und `-MaxRetries 3`. Alle fuenf Harnesses bestanden
+im ersten Versuch; kein Retry und kein manueller Eingriff waren erforderlich.
+Die physischen Temp-Pfade verhindern den reproduzierten macOS-Pfadwechsel
+zwischen `/var` und `/private/var`. Die sitzungsgebundene agy-Dateifreigabe
+gilt nur fuer den temporaeren Worktree. Die Routingpolicy bleibt unveraendert.
+
+EN: The final live test on 2026-11-04 checked commit
+`0699fa50aed88e316cebe37ec39a5f2de90195af` with versioned defaults,
+interactive sign-ins and `-MaxRetries 3`. All five harnesses passed on their
+first attempt, without retries or manual intervention. Physical temporary
+paths prevent the reproduced macOS switch between `/var` and `/private/var`.
+The session-only agy file permission covers only the temporary worktree.
+Routing policy remains unchanged.
+
+| Harness | Modell / Model | Reasoning | Discovery (s) | Preflight (s) | Aufgabe / Task (s) | Ergebnis / Result |
+|---|---|---|---:|---:|---:|---|
+| agy | `claude-opus-5-5-high` | high | 3.715 | 5.692 | 36.269 | PASS |
+| Claude | `opus` | high | 17.355 | 6.740 | 46.382 | PASS |
+| Codex | `gpt-6.1-sol` | high | 5.665 | 12.807 | 82.084 | PASS |
+| Copilot | `claude-opus-5.5` | high | 33.657 | 13.540 | 36.327 | PASS |
+| OpenCode | `openai/gpt-6.1-terra` | high | 5.117 | 6.008 | 53.112 | PASS |
+
+DE: Agent, externer Build und externer Lauf lieferten jeweils Exitcode 0;
+die Ausgabe war exakt `MODEL_ROUTING_OK`. Discovery, Preflight und Aufgabe
+blieben je Harness unter 120 Sekunden. Claude, Copilot und OpenCode behielten
+bei parameterlosem Status/Refresh bytegleiche Profile. Alle fuenf
+Cleanup-/Unveraendertheitspruefungen waren erfolgreich; verbliebene
+Test-Compiler-Daemons wurden anschliessend beendet. 46 Offline-Smoke-Vertraege,
+der modellfreie .NET-Build/Rebuild/Run-Regressionstest, 73 Dokumentations- und
+64 Release-Pruefungen sowie PSScriptAnalyzer bestanden. Gitleaks fand keine
+Leaks. Der vollstaendige Bericht bleibt lokal und ist ueber SHA-256 gebunden:
+`c11c7d4e16678514131b71a9d0299b9202e162fa9c05677b9b262d7280ddc153`.
+Dies ist Test-Evidence, keine Release- oder Rollout-Freigabe.
+
+EN: Agent, external build and external run each returned exit code 0, with
+output exactly `MODEL_ROUTING_OK`. Discovery, preflight and task stayed under
+120 seconds per harness. Claude, Copilot and OpenCode retained byte-identical
+profiles after parameterless status/refresh. All five cleanup/invariance
+checks passed; remaining test compiler daemons were stopped afterwards.
+The 46 offline smoke contracts, model-free .NET build/rebuild/run regression,
+73 documentation and 64 release checks, and PSScriptAnalyzer passed. Gitleaks
+found no leaks. The full report remains local, bound by the SHA-256 above.
+This is test evidence, not release or rollout approval.
