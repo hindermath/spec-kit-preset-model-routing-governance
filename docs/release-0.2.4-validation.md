@@ -27,14 +27,14 @@ required or authorized. Re-evaluate on SDK, CLI or OpenCode API drift.
 
 DE: Die deterministische Suite bestand am 2026-11-04 unter macOS: Bash- und
 PowerShell-Discovery, 193 additive Adapter-/Legacy-Paritätsprüfungen, 184
-Auswahlprüfungen, 40 plattformneutrale Smoke-Vertragsprüfungen,
+Auswahlprüfungen, 41 plattformneutrale Smoke-Vertragsprüfungen,
 Ergebnistransport, sieben Node-/SDK-/HTTP-Tests,
 Dokumentations- und Release-Verträge, PSScriptAnalyzer 1.25.0, `git diff
 --check` und Gitleaks. Die OpenCode-Fixture prüft beide Reasoning-Formen:
 `--variant` und `provider/model#variant`.
 
 EN: The deterministic suite passed on macOS on 2026-11-04: Bash and PowerShell
-discovery, 193 additive adapter/legacy parity checks, 184 selection checks, 40
+discovery, 193 additive adapter/legacy parity checks, 184 selection checks, 41
 platform-neutral smoke-contract checks, result transport, seven Node/SDK/HTTP
 tests, documentation and release contracts, PSScriptAnalyzer 1.25.0, `git diff
 --check`, and Gitleaks. The
@@ -114,5 +114,30 @@ EN: Future routing, adapter, profile-rendering or transport changes use the
 [platform-neutral manual live smoke test](live-smoke-test.EN.md). Its versioned
 defaults define the repeatable acceptance matrix; local JSON reports remain
 unversioned until a separate evidence update is explicitly authorized.
+
+## Diagnostischer Lauf / Diagnostic run
+
+DE: Der genau einmal autorisierte Diagnoselauf mit `-MaxRetries 0` wurde am
+2026-11-04 auf Commit `b45664cb860a8c442041f524a6c23d1d2ee73d36`
+ausgefuehrt. Er endete als `INFRA_ERROR`, weil die Projektinventur eine noch
+geoeffnete `.dotnet`-Lockdatei des OpenCode-Versuchs hashen wollte. Der spaete
+Fehler zeigte zusaetzlich, dass der Abschlussbericht bereits gesammelte
+Harness-Ergebnisse nicht behalten hatte. Der Runner schliesst deshalb
+`.dotnet` als SDK-Cache aus, behandelt nicht lesbare Hashes fehlertolerant,
+uebernimmt abgeschlossene Harness-Berichte fortlaufend und redigiert den
+temporaeren Pfad auch bei globalen Fehlern. Diese Nachbesserung ist durch 41
+Offline-Vertragspruefungen abgedeckt. Gemaess der Einmal-Grenze wurde der
+Live-Lauf nicht wiederholt; der lokale Fehlerbericht blieb unveraendert.
+
+EN: The single authorised diagnostic run with `-MaxRetries 0` ran on
+2026-11-04 at commit `b45664cb860a8c442041f524a6c23d1d2ee73d36`. It ended
+as `INFRA_ERROR` because project inventory attempted to hash an open `.dotnet`
+lock file from the OpenCode attempt. The late failure also showed that the
+final report had not retained already collected harness results. The runner
+therefore excludes `.dotnet` as SDK cache, tolerates unreadable hashes,
+incrementally retains completed harness reports, and redacts the temporary
+path for global failures. Forty-one offline contract assertions cover this
+hardening. The live run was not repeated under the single-run boundary, and
+the local failure report remains unchanged.
 
 [Strukturierte Vorbereitung / Structured preparation](release-0.2.4-preparation.json).

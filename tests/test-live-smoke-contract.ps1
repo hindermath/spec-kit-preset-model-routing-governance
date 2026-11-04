@@ -131,16 +131,22 @@ exit 131
     Set-Content (Join-Path $projectRoot 'App.csproj') '<Project Sdk="Microsoft.NET.Sdk"></Project>'
     Set-Content (Join-Path $projectRoot 'Program.cs') 'Console.WriteLine("MODEL_ROUTING_OK");'
     Set-Content (Join-Path $projectRoot '.git/config') 'secret-token=forbidden'
+    [void](New-Item -ItemType Directory -Path (Join-Path $projectRoot '.dotnet/lockfiles/global') -Force)
+    $sdkLockPath = Join-Path $projectRoot '.dotnet/lockfiles/global/active.server'
+    Set-Content $sdkLockPath 'excluded-sdk-cache'
     Set-Content (Join-Path $projectRoot 'obj/assets.json') 'excluded'
     Set-Content (Join-Path $binRoot 'App.runtimeconfig.json') '{"runtimeOptions":{"tfm":"net10.0"}}'
     Set-Content (Join-Path $binRoot 'App.deps.json') '{"runtimeTarget":{"name":"fixture"}}'
     [IO.File]::WriteAllBytes((Join-Path $binRoot 'App'),[byte[]](0..255))
-    $projectDiagnostics = Get-MRSmokeProjectDiagnostics -Worktree $projectRoot -RedactValues @('forbidden') -PathReplacements @{$projectRoot='<WORKTREE>'}
+    $sdkLock = [IO.File]::Open($sdkLockPath,[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+    try {
+        $projectDiagnostics = Get-MRSmokeProjectDiagnostics -Worktree $projectRoot -RedactValues @('forbidden') -PathReplacements @{$projectRoot='<WORKTREE>'}
+    } finally { $sdkLock.Dispose() }
     $projectPaths = @($projectDiagnostics.files | ForEach-Object { [string]$_.path })
     Assert-SmokeContract ('App.csproj' -cin $projectPaths -and 'Program.cs' -cin $projectPaths) 'project source metadata'
     Assert-SmokeContract ('bin/Debug/net10.0/App.runtimeconfig.json' -cin $projectPaths -and
         'bin/Debug/net10.0/App.deps.json' -cin $projectPaths) 'selected runtime metadata'
-    Assert-SmokeContract (@($projectPaths | Where-Object { $_ -like '.git/*' -or $_ -like 'obj/*' -or $_ -ceq 'bin/Debug/net10.0/App' }).Count -eq 0) 'excluded project artifacts'
+    Assert-SmokeContract (@($projectPaths | Where-Object { $_ -like '.git/*' -or $_ -like '.dotnet/*' -or $_ -like 'obj/*' -or $_ -ceq 'bin/Debug/net10.0/App' }).Count -eq 0) 'excluded project artifacts and SDK cache'
     Assert-SmokeContract (@($projectDiagnostics.files | Where-Object { $_.path -ceq 'App.csproj' -and $_.content.Contains('Microsoft.NET.Sdk') }).Count -eq 1) 'bounded project content'
 
     $emptyProject = Join-Path $temporary 'no-project'
@@ -164,6 +170,13 @@ exit 131
     $historicalReport = Join-Path $temporary 'report/historical-1.0.json'
     @{schemaVersion='1.0';testId='model-routing-live-smoke';finalStatus='FAILED'} | ConvertTo-Json | Set-Content $historicalReport
     Assert-SmokeContract ((Read-MRSmokeReport $historicalReport).schemaVersion -ceq '1.0') 'historical report schema readability'
+
+    $partialHarnesses = [Collections.Generic.List[object]]::new()
+    $partialReport = [ordered]@{harnesses=@()}
+    $partialHarnesses.Add([ordered]@{harness='agy';finalStatus='FAILED';attempts=@(@{attempt=1;status='FAILED'})})
+    $partialReport.harnesses = @($partialHarnesses)
+    try { throw 'synthetic later harness failure' } catch { $null = $_ }
+    Assert-SmokeContract ($partialReport.harnesses.Count -eq 1 -and $partialReport.harnesses[0].harness -ceq 'agy') 'completed harness evidence survives later failure'
 
     $gate = Invoke-MRSmokeProcess -ChildScript $childScript -Executable 'pwsh' `
         -Arguments @('-NoProfile','-File',(Join-Path $liveRoot 'invoke-model-routing-smoke.ps1')) `

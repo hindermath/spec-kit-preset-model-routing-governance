@@ -318,6 +318,7 @@ $temporaryRoot = $null
 $server = $null
 $globalFailure = $null
 $serverStopped = $true
+$harnessReports = [Collections.Generic.List[object]]::new()
 try {
     if ($statusBefore.Count -ne 0) { throw 'Candidate repository must be clean before the live smoke test.' }
     foreach ($command in @('git','node','npm','pwsh','dotnet','agy','claude','codex','copilot','opencode')) {
@@ -366,21 +367,28 @@ try {
         dotnetRuntimes=ConvertTo-MRSmokeDiagnosticText -Text $dotnetRuntimes.stdout -RedactValues $redactValues.ToArray() -PathReplacements $environmentPaths
     }
 
-    $harnessReports = [Collections.Generic.List[object]]::new()
     foreach ($harnessValue in $configuration.harnesses) {
         $harness = [hashtable]$harnessValue
         $attempts = [Collections.Generic.List[object]]::new()
         for ($attempt = 1; $attempt -le (1 + $MaxRetries); $attempt++) {
-            $attemptResult = Invoke-MRSmokeHarnessAttempt -Harness $harness -Attempt $attempt -Configuration $configuration `
-                -TemporaryRoot $temporaryRoot -RepositoryRoot $repositoryRoot -RedactValues $redactValues.ToArray() `
-                -ClaudeSdk $claudeSdk -CopilotSdk $copilotSdk -OpenCodeServer $server
+            try {
+                $attemptResult = Invoke-MRSmokeHarnessAttempt -Harness $harness -Attempt $attempt -Configuration $configuration `
+                    -TemporaryRoot $temporaryRoot -RepositoryRoot $repositoryRoot -RedactValues $redactValues.ToArray() `
+                    -ClaudeSdk $claudeSdk -CopilotSdk $copilotSdk -OpenCodeServer $server
+            } catch {
+                $attemptResult = [ordered]@{
+                    attempt=$attempt;status='INFRA_ERROR';reason=ConvertTo-MRSmokeDiagnosticText -Text $_.Exception.Message `
+                        -RedactValues $redactValues.ToArray() -PathReplacements $environmentPaths
+                    model=$null;reasoningEffort=$null;diagnostics=$null
+                }
+            }
             $attempts.Add($attemptResult)
             [ordered]@{harness=$harness.label;attempt=$attempt;status=$attemptResult.status;model=$attemptResult.model;reasoningEffort=$attemptResult.reasoningEffort} | ConvertTo-Json -Compress
             if ($attemptResult.status -ceq 'PASS') { break }
         }
         $harnessReports.Add([ordered]@{harness=[string]$harness.label;finalStatus=(Get-MRSmokeFinalStatus -Attempts @($attempts));attempts=@($attempts)})
+        $report.harnesses = @($harnessReports)
     }
-    $report.harnesses = @($harnessReports)
     if (@($report.harnesses | Where-Object { $_.finalStatus -notin @('PASS','PASS_WITH_RETRY') }).Count -eq 0) {
         $report.finalStatus = $(if (@($report.harnesses | Where-Object { [string]$_.finalStatus -ceq 'PASS_WITH_RETRY' }).Count) { 'PASS_WITH_RETRY' } else { 'PASS' })
     } else {
@@ -414,7 +422,9 @@ $report.cleanup = [ordered]@{
     permanentProfileUnchanged = ($profileBefore | ConvertTo-Json -Compress) -ceq ($profileAfter | ConvertTo-Json -Compress)
 }
 if ($globalFailure) {
-    $report.failureReason = ConvertTo-MRSmokeDiagnosticText -Text $globalFailure -PathReplacements @{$HOME='<HOME>';$repositoryRoot='<REPOSITORY>'}
+    $failurePaths = @{$HOME='<HOME>';$repositoryRoot='<REPOSITORY>'}
+    if ($temporaryRoot) { $failurePaths[$temporaryRoot] = '<TEMP>' }
+    $report.failureReason = ConvertTo-MRSmokeDiagnosticText -Text $globalFailure -PathReplacements $failurePaths
 }
 if (-not $report.cleanup.openCodeServerStopped -or -not $report.cleanup.temporaryRootRemoved -or -not $report.cleanup.repositoryHeadUnchanged -or
     -not $report.cleanup.repositoryStatusUnchanged -or -not $report.cleanup.permanentProfileUnchanged) {

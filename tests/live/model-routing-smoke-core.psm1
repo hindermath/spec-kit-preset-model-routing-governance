@@ -246,20 +246,20 @@ function Get-MRSmokeProjectDiagnostics {
     )
     if (-not (Test-Path -LiteralPath $Worktree -PathType Container)) { return [ordered]@{files=@();truncated=$false} }
     $entries = [Collections.Generic.List[object]]::new()
-    $allFiles = @(Get-ChildItem -LiteralPath $Worktree -Recurse -File -Force | Sort-Object FullName)
+    $allFiles = @(Get-ChildItem -LiteralPath $Worktree -Recurse -File -Force -ErrorAction SilentlyContinue | Sort-Object FullName)
     $truncated = $false
     foreach ($file in $allFiles) {
         $relative = [IO.Path]::GetRelativePath($Worktree,$file.FullName).Replace('\','/')
         if ($relative -match '(^|/)\.git(/|$)' -or $relative -match '(^|/)\.specify(/|$)' -or
+            $relative -match '(^|/)\.dotnet(/|$)' -or
             $relative -match '(^|/)obj(/|$)') { continue }
         $inBin = $relative -match '(^|/)bin(/|$)'
         $selectedRuntimeMetadata = $relative -match '\.(runtimeconfig|deps)\.json$'
         if ($inBin -and -not $selectedRuntimeMetadata) { continue }
         if ($entries.Count -ge 200) { $truncated = $true;break }
-        $entry = [ordered]@{
-            path=$relative;size=[long]$file.Length
-            sha256=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-        }
+        $entry = [ordered]@{path=$relative;size=[long]$file.Length;sha256=$null}
+        try { $entry.sha256 = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
+        catch { $entry.hashUnavailable = $true }
         if ($relative -match '\.csproj$' -or [IO.Path]::GetFileName($relative) -ceq 'Program.cs' -or $selectedRuntimeMetadata) {
             try {
                 $raw = [IO.File]::ReadAllText($file.FullName)
