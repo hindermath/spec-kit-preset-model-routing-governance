@@ -24,4 +24,13 @@ $callback={param($mode);@{mode=$mode;finalStatus='PASS_WITH_RETRY'}}
 if ((Invoke-MRValidationPair $callback).finalStatus -cne 'PASS_WITH_RETRY') { throw 'Retry evidence was lost.' }
 $callback={param($mode);@{mode=$mode;finalStatus='BLOCKED'}}
 if ((Invoke-MRValidationPair $callback).finalStatus -cne 'FAILED') { throw 'Blocked pair accepted.' }
+$LASTEXITCODE=0
+$nativeCallback={
+    param($mode)
+    & pwsh -NoProfile -Command 'exit 7' | ForEach-Object { $_ }
+    $exitCode=$global:LASTEXITCODE
+    @{mode=$mode;finalStatus='FAILED';exitCode=$exitCode}
+}.GetNewClosure()
+$nativeResult=Invoke-MRValidationPair $nativeCallback
+if (@($nativeResult.stages | Where-Object { $_.exitCode -ne 7 }).Count) { throw 'Native exit code was shadowed by closure.' }
 'PASS: paired ordering, continuation, failure and retry aggregation; offline.'

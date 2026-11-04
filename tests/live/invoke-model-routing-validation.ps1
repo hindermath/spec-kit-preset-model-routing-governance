@@ -52,7 +52,9 @@ $runStage = {
         if ($line.StartsWith('{"harness":')) { Write-Host $line }
         if ($line.StartsWith('Report: ')) { $reportLines.Add($line.Substring(8));Write-Host $line }
     }
-    $exitCode = $LASTEXITCODE
+    # GetNewClosure captures a stale local LASTEXITCODE. Native commands update
+    # the global automatic variable, which must be read before any other command.
+    $exitCode = $global:LASTEXITCODE
     if ($reportLines.Count -ne 1) { throw "Stage $mode did not produce exactly one report; exit $exitCode." }
     $path = $reportLines[0]
     $report = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json -AsHashtable -Depth 50
