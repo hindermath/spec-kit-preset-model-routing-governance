@@ -20,6 +20,10 @@ Import-Module (Join-Path $live 'model-routing-feature-fixture.psm1') -Force
 $temporary=Join-Path ([IO.Path]::GetTempPath()) "validation-hardening-$([guid]::NewGuid().ToString('N'))"
 [void](New-Item -ItemType Directory -Path $temporary)
 try{
+    foreach($invalid in @($null,@{},@{outcome='Blocked'},@{read=$true;writeDenied=$false},@{read='true';writeDenied='true'})){
+        if(Test-MRSmokeReadOnlyAttestation $invalid){throw 'Invalid read-only attestation accepted.'}
+    }
+    if(-not(Test-MRSmokeReadOnlyAttestation @{read=$true;writeDenied=$true})){throw 'Valid read-only attestation rejected.'}
     $result=Get-MRSmokeAgentResultDiagnostic -StandardOutput '{"outcome":"Blocked","blockedReason":"password=secret-value at /test/root","phaseId":"implementation","transcript":"must not retain"}' -RedactValues @('secret-value') -PathReplacements @{'/test/root'='<WORKTREE>'}
     if($result.outcome -cne 'Blocked' -or $result.blockedReason -match 'secret-value|/test/root' -or $result.Contains('transcript')){throw 'Phase-result redaction/allowlist failed.'}
     $long=Get-MRSmokeAgentResultDiagnostic -StandardOutput ('{"outcome":"Blocked","blockedReason":"'+('x'*10000)+'"}')

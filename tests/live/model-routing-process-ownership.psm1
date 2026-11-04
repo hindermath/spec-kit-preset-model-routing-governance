@@ -28,7 +28,8 @@ function Update-MRSmokeCompilerOwnership {
     $relations = if ($IsWindows) {
         @(Get-CimInstance Win32_Process -OperationTimeoutSec 2 | ForEach-Object { @{id=[int]$_.ProcessId;parent=[int]$_.ParentProcessId} })
     } else {
-        @(& ps -axo 'pid=,ppid=' | ForEach-Object {
+        $processList=(Get-Command ps -CommandType Application -ErrorAction Stop).Source
+        @(& $processList -axo 'pid=,ppid=' | ForEach-Object {
             if ($_ -match '^\s*(\d+)\s+(\d+)\s*$') { @{id=[int]$Matches[1];parent=[int]$Matches[2]} }
         })
     }
@@ -58,9 +59,14 @@ function Stop-MRSmokeOwnedCompilers {
     foreach ($entry in @($script:ownedCompilers.Values)) {
         try { $process=Get-Process -Id $entry.id -ErrorAction Stop }
         catch { $alreadyExited++;continue }
-        $compilerPath=Get-MRSmokeCompilerPath $process
-        if (-not (Test-MRSmokeCompilerIdentity $compilerPath $entry.startTicks $process.StartTime.ToUniversalTime().Ticks) -or $process.Path -cne $entry.path -or $compilerPath -cne $entry.compilerPath) {
-            $failed++;continue
+        try {
+            $compilerPath=Get-MRSmokeCompilerPath $process
+            if (-not (Test-MRSmokeCompilerIdentity $compilerPath $entry.startTicks $process.StartTime.ToUniversalTime().Ticks) -or $process.Path -cne $entry.path -or $compilerPath -cne $entry.compilerPath) {
+                $failed++;continue
+            }
+        } catch {
+            if($process.HasExited){$alreadyExited++}else{$failed++}
+            continue
         }
         if ($PSCmdlet.ShouldProcess("owned compiler PID $($entry.id)",'Stop test compiler')) {
             try { $process.Kill();if(-not $process.WaitForExit(2000)){throw 'Compiler termination timeout.'};$stopped++ }

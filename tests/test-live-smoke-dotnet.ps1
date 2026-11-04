@@ -23,6 +23,7 @@ if($VerifyCompilerCleanup){Enable-MRSmokeCompilerTracking}
 if (-not ((& dotnet --version).Trim().StartsWith('10.'))) { throw '.NET SDK 10 required.' }
 $temporary = Join-Path ([IO.Path]::GetTempPath()) "routing-dotnet-contract-$([guid]::NewGuid().ToString('N'))"
 [void](New-Item -ItemType Directory -Path $temporary)
+$regressionCompleted=$false
 try {
     $physical = Resolve-MRSmokePhysicalPath $temporary
     [void](New-Item -ItemType Directory -Path (Join-Path $physical 'project'))
@@ -49,12 +50,13 @@ try {
     }
     $run = Invoke-MRSmokeProcess @common -Arguments @('run','--project',$project,'--no-build','--no-restore')
     if ($run.exitCode -ne 0 -or $run.stdout.TrimEnd("`r","`n") -cne 'MODEL_ROUTING_OK') { throw "Output verification failed: $($run.stderr)" }
+    $regressionCompleted=$true
     'PASS: physical-path .NET build/rebuild/run regression; no models or package sources.'
 } finally {
     if($VerifyCompilerCleanup){
         $cleanup=Stop-MRSmokeOwnedCompilers -Confirm:$false
         $cleanup|ConvertTo-Json -Compress
-        if($cleanup.failed -ne 0 -or $cleanup.tracked -lt 1){throw 'Compiler ownership/cleanup was not demonstrated.'}
     }
     Remove-Item -LiteralPath $temporary -Recurse -Force
+    if($VerifyCompilerCleanup -and $regressionCompleted -and ($cleanup.failed -ne 0 -or $cleanup.tracked -lt 1)){throw 'Compiler ownership/cleanup was not demonstrated.'}
 }

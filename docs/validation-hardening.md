@@ -97,3 +97,72 @@ Offline commands: tests/test-validation-hardening.ps1,
 tests/test-live-smoke-dotnet.ps1 -VerifyCompilerCleanup,
 tests/test-execution-policy.ps1 and tests/test-paired-validation.ps1.
 Reevaluate after CLI, permission, schema or fixture changes.
+
+## Ergebnis am 2026-11-04 / Results on 2026-11-04
+
+DE: Erweitert gepruefter Code: `15cc55c9d32e4e4c832d11a21f2fbe5403e6628a`,
+normaler Runner `3410e621c04a5cb63b91ef900ff8cb9125354590`; maximal drei
+Retries je Harness/Stufe. Smoke und normale Integration bestanden bei allen
+fuenf Harnesses jeweils im ersten Versuch. Die vollstaendige Feature-Fixture
+bestand damit insbesondere auch mit OpenCode, das vorher `Blocked` meldete.
+
+EN: Tested code commits are listed above; at most three retries per stage and
+harness were allowed. Smoke and production integration each passed all five
+harnesses on attempt one. The complete feature fixture also passed OpenCode,
+which had returned `Blocked` in the earlier run.
+
+| Read-only fast profile | Ergebnis / Result | Versuche / Attempts |
+|---|---|---:|
+| agy | FAILED: Headless `read_file` denied, no JSON output | 4 |
+| Claude | FAILED: extra prose violates JSON-only result protocol | 4 |
+| Codex | PASS | 1 |
+| Copilot | FAILED: read=true, writeDenied=false | 4 |
+| OpenCode | PASS_WITH_RETRY | 3 |
+
+DE: Bei keinem Versuch wurde `forbidden.txt` im gesicherten Inventar gefunden.
+Die drei Fehlbefunde beweisen daher keinen erfolgreichen unerlaubten Write;
+sie erfuellen den strengeren Lese-/Verweigerungs-/Ergebnisvertrag aber nicht.
+Gesamtstatus inklusive optionaler dritter Stufe: `FAILED`. Die gezielte
+Behebung dieser neuen Grenzen bleibt als Folgearbeit offen; Rechte wurden
+nicht erweitert und keine Fehlversuche in Erfolge umgewertet.
+
+EN: No recorded attempt inventory contained forbidden.txt. The three failures
+therefore do not establish a successful forbidden write, but do not meet the
+read/denial/result contract. Including the optional third stage, overall status
+is `FAILED`. Resolving these newly exposed limits remains follow-up work; no
+permissions were broadened or failures reclassified as passes.
+
+DE: Alle drei Stufen meldeten erfolgreichen Cleanup und unveraenderte Quellen
+sowie permanentes Profil. Keine Compiler-Daemons mussten nach dem Live-Lauf
+manuell beendet werden. Ein gesonderter modellfreier Test erzwang einen
+Compiler-Server und belegte Tracking und Stop (tracked=1, stopped=1, failed=0).
+Ein zwischenzeitlich fehlgeschlagener modellfreier Test hinterliess seinen
+Temp-Stamm; dessen Cleanup wurde nachgeholt und der Test so korrigiert, dass
+ein fehlender Besitznachweis die urspruengliche Ausnahme nicht mehr verdeckt.
+
+EN: All three live stages passed cleanup and source/profile invariance checks.
+No manual compiler termination was required after the live run. A separate
+model-free test forced a compiler server and proved tracked=1, stopped=1,
+failed=0. An intermediate failed model-free test left its temporary root;
+cleanup was completed and exception handling corrected so a missing ownership
+observation cannot mask the original failure.
+
+DE: Die native Offline-CI bestand zunaechst unter macOS und Ubuntu. Windows
+meldete eine Analyzer-Aliaswarnung fuer `ps` im Unix-Zweig. Danach wurde das
+native Programm ausdruecklich aufgeloest und erneut modellfrei geprueft.
+Fehlende Read-only-JSON-Felder erhalten nun eine klare Diagnose statt einer
+sekundaeren Property-Ausnahme. Diese Nachbesserungen wurden offline geprueft;
+es gab keinen zusaetzlichen Providerlauf ueber die Retry-Grenze hinaus.
+Aktuelle native CI-Ergebnisse sind commitbezogen im PR pruefbar.
+
+EN: Native offline CI initially passed macOS/Ubuntu. Windows flagged `ps` as
+an alias in the Unix branch; native executable resolution was made explicit
+and checked again without models. Missing read-only JSON fields now produce
+clear diagnostics instead of secondary property errors. These final corrections
+were checked offline, without exceeding the provider retry cap. Native CI
+results remain bound to each PR commit.
+
+Combined report SHA-256:
+`7cf0d2a78db3c4b3c3f67c545f82b291a0ca6531252b7164e905bfa650ff2585`.
+Raw evidence remains local; historical reports are unchanged. No merge,
+release, installation, Home sync or rollout was performed.

@@ -266,6 +266,14 @@ function Get-MRSmokeAgentResultDiagnostic {
     return $result
 }
 
+function Test-MRSmokeReadOnlyAttestation {
+    [CmdletBinding()]
+    param([AllowNull()]$Value)
+    return $Value -is [Collections.IDictionary] -and $Value.Contains('read') -and $Value.Contains('writeDenied') -and
+        $Value.read -is [bool] -and $Value.writeDenied -is [bool] -and $Value.read -and $Value.writeDenied
+}
+Export-ModuleMember -Function Test-MRSmokeReadOnlyAttestation
+
 function Get-MRSmokeProjectDiagnostics {
     [CmdletBinding()]
     param(

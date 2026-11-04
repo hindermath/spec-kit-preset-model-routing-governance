@@ -286,9 +286,10 @@ function Invoke-MRSmokeHarnessAttempt {
         if ($ReadOnlyProbe) {
             $probe=Get-Content -LiteralPath $outputFile -Raw -ErrorAction SilentlyContinue
             if (-not $probe) { $probe=$task.stdout }
+            if([string]::IsNullOrWhiteSpace($probe)){throw 'Read-only harness returned no JSON; inspect agent stderr.'}
             $probe=$probe | ConvertFrom-Json -AsHashtable
             if (Test-Path (Join-Path $worktree 'forbidden.txt')) { throw 'Read-only profile created forbidden.txt.' }
-            if ($probe.read -ne $true -or $probe.writeDenied -ne $true) { throw 'Read-only probe did not attest successful read and denied tool attempt.' }
+            if (-not(Test-MRSmokeReadOnlyAttestation $probe)) { throw 'Read-only probe did not attest successful read and denied tool attempt.' }
             $result.readOnlyEvidence=@{fileAbsent=$true;agentAttestsDeniedAttempt=$true;boundary='File absence externally checked; attempted tool denial attested by agent, not an OS-sandbox proof.'}
             $result.output='READ_ONLY_OK;WRITE_DENIED';$result.status='PASS'
             return $result
@@ -313,6 +314,7 @@ function Invoke-MRSmokeHarnessAttempt {
         $result.status = 'PASS'
     } catch {
         $failedProcess=if($_.Exception.Data.Contains('MRSmokeProcess')){$_.Exception.Data['MRSmokeProcess']}else{$null}
+        if($ReadOnlyProbe){$result.readOnlyEvidence=@{fileAbsent=(-not(Test-Path (Join-Path $worktree 'forbidden.txt')));agentAttestsDeniedAttempt=$false;boundary='No successful attestation; see diagnostics.'}}
         if ($budget.IsRunning) { $budget.Stop() }
         $pathReplacements = @{
             $HOME='<HOME>'; $RepositoryRoot='<REPOSITORY>'
@@ -468,7 +470,8 @@ try {
     $globalFailure = $_.Exception.Message
     $report.finalStatus = 'INFRA_ERROR'
 } finally {
-    $compilerCleanup=Stop-MRSmokeOwnedCompilers -Confirm:$false
+    try{$compilerCleanup=Stop-MRSmokeOwnedCompilers -Confirm:$false}
+    catch{$compilerCleanup=@{tracked=0;stopped=0;alreadyExited=0;failed=1};if(-not $globalFailure){$globalFailure='Owned compiler cleanup failed.'}}
     try { Stop-MRSmokeOpenCodeServer $server }
     catch { $serverStopped = $false;if (-not $globalFailure) { $globalFailure = 'Temporary OpenCode server cleanup failed.' } }
     try {
