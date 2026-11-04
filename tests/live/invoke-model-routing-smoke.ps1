@@ -251,7 +251,9 @@ function Invoke-MRSmokeHarnessAttempt {
             $catalogRoot = Join-Path $worktree '.specify/presets/autonomous-run-governance'
             [void](New-Item -ItemType Directory -Path $catalogRoot -Force)
             Copy-Item (Join-Path $AutonomousRunnerSource 'model-routing.json') $catalogRoot
-            $statePath = Join-Path $worktree 'integration-state.json'
+            $featurePath = Join-Path $worktree 'specs/999-routing-integration'
+            [void](New-Item -ItemType Directory -Path $featurePath -Force)
+            $statePath = Join-Path $featurePath 'autonomous-run-state.json'
             $state = @{runId=[guid]::NewGuid().ToString();status='Active';authorityRevalidationRequired=$false
                 routing=@{policy='balanced-v1';fallbackPolicy='fail-closed';phases=@(@{
                     phaseId='implementation';command='speckit.implement';routingRole='long-running-implementation'
