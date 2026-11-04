@@ -71,6 +71,27 @@ try {
         Assert-Adapter ($before.code -eq 3 -and $after.code -eq 3 -and $before.result.reason -ceq $after.result.reason) "$family ambiguity behavior changed."
         Assert-Adapter ((Get-FileHash $config).Hash -ceq $digest) "$family blocked refresh wrote profile."
     }
+    $currentAgyModels = @(
+        'gemini-4-argon-medium','gemini-4-argon-high','gemini-4-argon-low',
+        'gemini-3.8-flash-high','gemini-3.8-flash-medium','gemini-3.8-flash-low',
+        'claude-opus-5-5-low','claude-opus-5-5-medium','claude-opus-5-5-high',
+        'claude-sonnet-5-5-low','claude-sonnet-5-5-medium','claude-sonnet-5-5-high',
+        'gpt-oss-120b-medium'
+    ) | ForEach-Object {
+        @{
+            id=$_; model=$_; displayName=$_; description='Current agy fixture'; hidden=$false; isDefault=$false
+            defaultReasoningEffort='medium'; supportedReasoningEfforts=@(
+                @{reasoningEffort='low';description='Low'}, @{reasoningEffort='medium';description='Medium'},
+                @{reasoningEffort='high';description='High'}
+            )
+        }
+    }
+    $currentAgyFixture = Write-TestFixture @{models=@($currentAgyModels)}
+    $currentAgy = Invoke-TestResolver $resolver 'Antigravity' 'Refresh' $currentAgyFixture (Join-Path $temporary 'Antigravity-current.json')
+    $currentAgyFrontier = @($currentAgy.result.roles | Where-Object { $_.role -eq 'frontier-reasoning' })
+    $currentAgyFast = @($currentAgy.result.roles | Where-Object { $_.role -eq 'fast-mechanical' })
+    Assert-Adapter ($currentAgy.code -eq 0 -and $currentAgyFrontier[0].model -ceq 'claude-opus-5-5-high') 'Current agy Opus high frontier was not selected.'
+    Assert-Adapter ($currentAgyFast[0].model -ceq 'gemini-3.8-flash-medium') 'Current agy Flash medium fast model was not selected.'
     foreach ($family in @('Claude','Copilot','OpenCode')) {
         $frontier = @{ value='opus'; id='claude-opus-99'; supportsEffort=$true; supportedEffortLevels=@('high','medium'); policy=@{state='enabled'}; capabilities=@{supports=@{reasoningEffort=$true}; reasoning=$true}; supportedReasoningEfforts=@('high','medium'); variants=@{high=@{}; medium=@{}} }
         $fast = @{ value='haiku'; id='claude-haiku-99'; supportsEffort=$false; policy=@{state='enabled'}; capabilities=@{supports=@{reasoningEffort=$false}; reasoning=$false} }

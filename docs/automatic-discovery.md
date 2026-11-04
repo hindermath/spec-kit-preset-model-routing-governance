@@ -1,9 +1,10 @@
-# Automatische Adapter: Entwicklungskandidat 0.2.0
+# Automatische Adapter: Entwicklungskandidat 0.2.4
 
 [English](automatic-discovery.EN.md) · [Nutzungsleitfaden](user-guide.md)
 
-Dieser Kandidat ergänzt Claude, Copilot und OpenCode. Die bisherigen
-Codex-/Antigravity-Regeln, Profile und Aufrufe bleiben erhalten. Es gibt keinen
+Dieser Kandidat aktualisiert die Erkennung für `agy`, Claude, Copilot und
+OpenCode. Die bisherigen Codex-Regeln sowie historische `agy`-Muster, Profile
+und Aufrufe bleiben erhalten. Es gibt keinen
 Release-, Installations- oder Rollout-Auftrag. Die Beispiele gelten erst für
 die geprüfte Kandidatenquelle; sie ändern keine installierten Presets.
 
@@ -43,7 +44,11 @@ bash scripts/resolve-model-routing.sh -Action Status -Harness OpenCode -OpenCode
 
 Die URL darf nur einen HTTP-Ursprung mit `127.0.0.1` oder `[::1]` enthalten.
 Pfade, Zugangsdaten, Query, Fragment und Redirects sind gesperrt. Der Resolver
-liest ausschließlich `GET /provider`, ohne Proxy. Optional übernimmt er
+liest zuerst `GET /api/provider` und `GET /api/model`, ohne Proxy. Unterstützt
+werden die OpenCode-2.2.5-Hüllen mit `data[]`, exakten `providerID`-Werten,
+aktivierten Modellen und bestätigten `variants[]`. Wenn die aktuelle API nicht
+verfügbar ist oder HTML liefert, wird ausschließlich `GET /provider` als
+Legacy-Fallback geprüft. Unbekannte Schemata bleiben blockiert. Optional übernimmt er
 `OPENCODE_SERVER_PASSWORD` und `OPENCODE_SERVER_USERNAME` aus der Umgebung;
 Standard-Benutzer ist `opencode`. Zugangsdaten niemals in URL oder Git ablegen.
 HTTP-Antworten sind auf 4 MiB und zeitlich begrenzt. Kein Cache-Refresh.
@@ -61,7 +66,10 @@ Die versionierte Quelle `scripts/adapters/selection-policy.json` filtert zuerst
 bestätigte Fähigkeiten und verwendet danach deklarierte Präferenzstufen.
 Die Reihenfolge ist eine betriebliche Heuristik, kein Benchmark oder
 anbieterübergreifender Qualitätsnachweis. Weder Listenposition noch eine höhere
-Versionsnummer allein entscheiden. Codex und `agy` bleiben unverändert.
+Versionsnummer allein entscheiden. Codex bleibt unverändert. Bei `agy` bleiben
+historische Muster erhalten; zusätzlich werden aktuelle
+`claude-opus-*-high`- und `gemini-*-argon-high`-Namen erkannt. Fast verwendet
+weiterhin `gemini-*-flash-medium`.
 
 Claude, Copilot und OpenCode geben das strukturierte Phasenergebnis auf der
 Standardausgabe zurück. `invoke-harness-with-result.ps1` akzeptiert nur ein
@@ -129,9 +137,13 @@ Refresh erzeugt lediglich vier Profile einschließlich eines späteren
 Zugangs-Preflights. Er führt diesen nicht aus. Ein späterer Runner muss seine
 eigene Autorität, Arbeitsverzeichnisgrenze und Ergebnisdatei prüfen.
 
-Neue Profile verwenden die native CLI: Claude `--effort`, Copilot `--effort`,
-OpenCode `--variant`. CLI-Hilfe wird vor echter Discovery auf die benötigten
-Schalter geprüft. Der Preflight bittet um `MODEL_READY`; Claude deaktiviert
+Neue Profile verwenden die native CLI: Claude `--effort`, Copilot bevorzugt
+`--reasoning-effort` und verwendet `--effort` nur als erkannte Legacy-Form,
+OpenCode verwendet entweder den erkannten Schalter `--variant` oder die von
+2.2.5 dokumentierte Form `provider/model#variant`. Die CLI-Hilfe wird in einem begrenzten Kindprozess aus
+stdout und stderr erfasst, von ANSI-/Steuerzeichen bereinigt und anschließend
+auf ganze Flag-Tokens geprüft. Fehlt bei Copilot beides, bleibt Discovery
+blockiert. Der Preflight bittet um `MODEL_READY`; Claude deaktiviert
 Tools/MCP, Copilot begrenzt Tools auf Lesen, OpenCode nutzt `plan`.
 Fast-Profile verwenden ebenfalls Plan-/Lesemodi. Implementierungsprofile
 verwenden Claude `acceptEdits`, OpenCode `build` beziehungsweise Copilots

@@ -296,7 +296,13 @@ function Select-MRModels {
     } elseif ($Family -eq 'Antigravity') {
         $frontier = @($Models | Where-Object { [string] $_.model -match '^claude-opus-.+-thinking$' })
         if ($frontier.Count -ne 1) {
+            $frontier = @($Models | Where-Object { [string] $_.model -match '^claude-opus-.+-high$' })
+        }
+        if ($frontier.Count -ne 1) {
             $frontier = @($Models | Where-Object { [string] $_.model -match '^gemini-.+-pro-high$' })
+        }
+        if ($frontier.Count -ne 1) {
+            $frontier = @($Models | Where-Object { [string] $_.model -match '^gemini-.+-argon-high$' })
         }
         $fast = @($Models | Where-Object { [string] $_.model -match '^gemini-.+-flash-medium$' } | Select-Object -First 1)
         Assert-MRCondition ($frontier.Count -eq 1) 'Antigravity Frontier-Zuordnung ist nicht eindeutig.'
