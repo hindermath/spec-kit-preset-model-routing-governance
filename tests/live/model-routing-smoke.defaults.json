@@ -53,6 +53,7 @@
   "triggerPaths": [
     "scripts/resolve-model-routing.ps1",
     "scripts/resolve-model-routing.sh",
+    "scripts/execution-policy.psm1",
     "scripts/adapters/*",
     "tests/live/*"
   ],

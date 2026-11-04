@@ -51,6 +51,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           pwsh -NoProfile -File tests/test-live-smoke-contract.ps1
           pwsh -NoProfile -File tests/test-execution-policy.ps1
+          pwsh -NoProfile -File tests/test-paired-validation.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test tests/test-sdk-bridge.mjs tests/test-adapter-transports.mjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
