@@ -28,8 +28,16 @@ function global:claude { $global:LASTEXITCODE = 0; 'fixture-cli 1.0' }
 function global:copilot { $global:LASTEXITCODE = 0; 'fixture-cli 1.0' }
 function global:opencode { $global:LASTEXITCODE = 0; 'fixture-cli 1.0' }
 function Invoke-TestResolver {
-    param([string] $Path, [string] $Family, [string] $Action, [string] $Fixture, [string] $Config)
-    $text = & $Path -Action $Action -Harness $Family -DiscoveryFixture $Fixture -ConfigPath $Config -OutputFormat Json
+    param(
+        [string] $Path, [string] $Family, [string] $Action, [string] $Fixture, [string] $Config,
+        [string] $FrontierModel = '', [string] $FastModel = ''
+    )
+    $arguments = @{Action=$Action;Harness=$Family;DiscoveryFixture=$Fixture;ConfigPath=$Config;OutputFormat='Json'}
+    if ($Path -ceq $resolver) {
+        $arguments.FrontierModel = $FrontierModel
+        $arguments.FastModel = $FastModel
+    }
+    $text = & $Path @arguments
     $code = $LASTEXITCODE
     return @{ code = $code; result = ($text -join "`n" | ConvertFrom-Json -AsHashtable) }
 }
@@ -146,6 +154,7 @@ try {
                 duplicate { $copy.models += $copy.models[0].Clone() }
                 ambiguousVersions {
                     $copy.models[0].value = 'claude-opus-98'
+                    $copy.models[0].id = 'claude-opus-98'
                     $other = $copy.models[0].Clone()
                     $other.value='claude-opus-97'; $other.id='claude-opus-97'
                     $copy.models += $other
@@ -177,7 +186,9 @@ try {
             $copy.models[1].capabilities.reasoning=$true
             $copy.models[1].variants=@{}; $copy.models[1].variants[$effort]=@{}
             $fixture = Write-TestFixture $copy
-            $positive = Invoke-TestResolver $resolver $family Refresh $fixture $config
+            $frontierChoice = if ($family -eq 'Claude') { 'opus' } elseif ($family -eq 'OpenCode') { 'anthropic/claude-opus-99' } else { 'claude-opus-99' }
+            $fastChoice = if ($family -eq 'Claude') { 'haiku' } elseif ($family -eq 'OpenCode') { 'anthropic/claude-haiku-99' } else { 'claude-haiku-99' }
+            $positive = Invoke-TestResolver $resolver $family Refresh $fixture $config $frontierChoice $fastChoice
             $role = @($positive.result.roles | Where-Object { $_.role -ceq 'fast-mechanical' })
             Assert-Adapter ($positive.code -eq 0 -and $role[0].reasoningEffort -ceq $effort) "$family $effort was not preserved."
         }

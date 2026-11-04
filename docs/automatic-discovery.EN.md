@@ -113,8 +113,21 @@ Example with synthetic IDs, not promised availability:
 bash scripts/resolve-model-routing.sh -Action Status -Harness Copilot -SdkModulePath /absolute/sdk/entry.js -FrontierModel gpt-99 -FastModel gpt-99-mini
 ```
 
-Repeat the same explicit selection parameters on subsequent status/refresh
-calls. These new parameters do not apply to Codex or `agy`.
+After a successful refresh, Claude, Copilot and OpenCode automatically reuse
+those deliberately selected models on later status/refresh calls. The stored
+schema-2.0 profile is accepted only when frontier, implementation and review
+contain exactly the same model ID and reasoning level, the fast profile is
+unambiguous, and the current catalogue still reports every model as active,
+policy-compliant and eligible for the stored reasoning level. A parameter on
+the current call takes precedence for its role; the other role may still come
+from the profile. With no stored selection, the existing fail-closed policy
+continues to apply.
+
+If a stored model disappears or its policy or reasoning capability changes,
+the call blocks and preserves the profile byte for byte. It never silently
+switches to a newer model. An explicitly supplied valid replacement may replace
+the stale selection for that role. This reuse does not apply to Codex or `agy`;
+their behavior remains unchanged.
 
 Exit code `0` means aligned, `2` means refresh required, `3` means blocked.
 With no profile, status proposes a binding and returns 2. Ambiguity, duplicate

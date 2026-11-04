@@ -122,8 +122,22 @@ Beispiel mit synthetischen IDs, keine Zusage tatsächlicher Verfügbarkeit:
 bash scripts/resolve-model-routing.sh -Action Status -Harness Copilot -SdkModulePath /absolute/sdk/entry.js -FrontierModel gpt-99 -FastModel gpt-99-mini
 ```
 
-Für spätere Status-/Refresh-Aufrufe dieselben expliziten Auswahlparameter
-verwenden. Diese neuen Parameter gelten nicht für Codex oder `agy`.
+Nach einem erfolgreichen Refresh verwenden Claude, Copilot und OpenCode diese
+ausdrücklich gewählten Modelle bei späteren Status-/Refresh-Aufrufen automatisch
+wieder. Das gespeicherte Schema-2.0-Profil gilt nur, wenn Frontier,
+Implementation und Review exakt dieselbe Modell-ID und Reasoning-Stufe tragen,
+das Fast-Profil eindeutig ist und der aktuelle Katalog alle Modelle weiterhin
+aktiv, policy-konform und mit der gespeicherten Reasoning-Stufe meldet. Ein
+aktuell angegebener Parameter hat je Rolle Vorrang; der andere Wert darf aus dem
+Profil kommen. Ohne gespeicherte Auswahl gilt weiterhin die bestehende
+fail-closed Policy.
+
+Fehlt ein gespeichertes Modell oder hat sich seine Policy beziehungsweise
+Reasoning-Fähigkeit geändert, blockiert der Lauf und erhält die Profildatei
+bytegleich. Es gibt keinen stillen Wechsel auf ein neueres Modell. Ein
+ausdrücklich angegebener gültiger Ersatz darf die veraltete Auswahl dieser Rolle
+ersetzen. Diese Wiederverwendung gilt nicht für Codex oder `agy`; deren Verhalten
+bleibt unverändert.
 
 `0` bedeutet ausgerichtet, `2` bedeutet Refresh erforderlich, `3` bedeutet
 blockiert. Ohne Profil zeigt Status einen Vorschlag mit Exitcode 2. Mehrdeutige

@@ -311,10 +311,15 @@ function Select-MRAdapterCandidate {
 }
 
 function Select-MRDiscoveredModel {
-    param([string] $Family, [AllowEmptyCollection()][object[]] $Models)
+    param(
+        [string] $Family,
+        [AllowEmptyCollection()][object[]] $Models,
+        [string] $EffectiveFrontierModel = $FrontierModel,
+        [string] $EffectiveFastModel = $FastModel
+    )
     $policy = Read-MRJson (Join-Path $PSScriptRoot 'selection-policy.json')
-    $frontier = Select-MRAdapterCandidate $Family 'frontier' $Models $policy.roles.frontier $FrontierModel
-    $fast = Select-MRAdapterCandidate $Family 'fast' $Models $policy.roles.fast $FastModel $frontier
+    $frontier = Select-MRAdapterCandidate $Family 'frontier' $Models $policy.roles.frontier $EffectiveFrontierModel
+    $fast = Select-MRAdapterCandidate $Family 'fast' $Models $policy.roles.fast $EffectiveFastModel $frontier
     return @{
         frontier = $frontier; fast = $fast
         frontierEffort = Get-MRAdapterEffort $frontier 'frontier'

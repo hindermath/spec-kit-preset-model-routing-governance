@@ -3,14 +3,17 @@
 DE: Dieser lokale, unveröffentlichte Kandidat ergänzt aktuelle `agy`-Namen,
 normalisiert begrenzte Claude-CLI-Hilfe, bindet bei Copilot den tatsächlich
 erkannten Reasoning-Schalter und liest die OpenCode-2.2.5-API vor dem
-Legacy-Fallback. Codex-Verhalten und historische `agy`-Auflösungen bleiben
-unverändert. Mehrdeutige oder unbekannte Ergebnisse blockieren weiterhin.
+Legacy-Fallback. Claude, Copilot und OpenCode validieren und verwenden außerdem
+eine zuvor ausdrücklich gespeicherte Modellauswahl erneut. Codex-Verhalten und
+historische `agy`-Auflösungen bleiben unverändert. Mehrdeutige, veraltete oder
+unbekannte Ergebnisse blockieren weiterhin.
 
 EN: This local, unpublished candidate adds current `agy` names, normalizes
 bounded Claude CLI help, binds Copilot's actually detected reasoning flag and
-reads the OpenCode 2.2.5 API before the legacy fallback. Codex behavior and
-historical `agy` resolution remain unchanged. Ambiguous or unknown results
-still fail closed.
+reads the OpenCode 2.2.5 API before the legacy fallback. Claude, Copilot and
+OpenCode also validate and reuse a previously explicit stored model selection.
+Codex behavior and historical `agy` resolution remain unchanged. Ambiguous,
+stale or unknown results still fail closed.
 
 Documentation Impact **UpdateRequired**, owner Thorsten Hindermann. Canonical
 sources are the resolver, additive adapters, transport tests, paired discovery
@@ -23,14 +26,14 @@ required or authorized. Re-evaluate on SDK, CLI or OpenCode API drift.
 ## Lokale Prüfung / Local verification
 
 DE: Die deterministische Suite bestand am 2026-11-04 unter macOS: Bash- und
-PowerShell-Discovery, 193 additive Adapter-/Legacy-Paritätsprüfungen, 119
+PowerShell-Discovery, 193 additive Adapter-/Legacy-Paritätsprüfungen, 184
 Auswahlprüfungen, Ergebnistransport, sieben Node-/SDK-/HTTP-Tests,
 Dokumentations- und Release-Verträge, PSScriptAnalyzer 1.25.0, `git diff
 --check` und Gitleaks. Die OpenCode-Fixture prüft beide Reasoning-Formen:
 `--variant` und `provider/model#variant`.
 
 EN: The deterministic suite passed on macOS on 2026-11-04: Bash and PowerShell
-discovery, 193 additive adapter/legacy parity checks, 119 selection checks,
+discovery, 193 additive adapter/legacy parity checks, 184 selection checks,
 result transport, seven Node/SDK/HTTP tests, documentation and release
 contracts, PSScriptAnalyzer 1.25.0, `git diff --check`, and Gitleaks. The
 OpenCode fixture covers both reasoning forms: `--variant` and
@@ -64,10 +67,37 @@ table records each final green run; discovery, preflight and task stayed below
 All five final runs contain exactly one C# project, no `PackageReference`, a
 successful `dotnet build --no-restore`, exit code 0 and normalized output
 exactly `MODEL_ROUTING_OK`. The five-harness functional live proof is therefore
-green. The stricter no-override automatic-routing acceptance remains open:
-Copilot correctly stays fail-closed until its four equal-rank Opus models are
-resolved by explicit selection or a separately approved deterministic policy.
-This evidence does not authorize delivery.
+green. Copilot correctly stays fail-closed on a new profile until its four
+equal-rank Opus models are resolved by explicit selection or a separately
+approved deterministic policy. This evidence does not authorize delivery.
+
+## Gespeicherte Auswahl / Stored selection
+
+DE: Der ergänzende Live-Nachweis erzeugte am 2026-11-04 je ein temporäres
+Profil mit den bekannten exakten IDs und wiederholte anschließend reale
+Discovery ohne Modellparameter. Claude meldete `opus`/`haiku`, Copilot
+`claude-opus-5.5`/`claude-haiku-5.5` und OpenCode
+`openai/gpt-6.1-terra`/`openai/gpt-6-luna`; alle drei Folgestatusläufe waren
+`Aligned`. Copilot und OpenCode behielten vor und nach Status denselben
+SHA-256-Profilhash. Der Copilot-C#-Lauf verwendete danach das gespeicherte
+Implementierungsprofil `claude-opus-5.5`, `high` über die vorhandene
+interaktive Anmeldung. Preflight: 8,725 s; Aufgabe: 42,025 s; Agent-Exitcode 0.
+Die unabhängige Abnahme fand genau ein Projekt, keine `PackageReference`, einen
+erfolgreichen Build und Lauf sowie exakt `MODEL_ROUTING_OK`. Es wurden keine
+API-Key-Umgebungsvariablen an den Kindprozess weitergegeben.
+
+EN: The additional live proof created one temporary profile per harness with
+the known exact IDs on 2026-11-04, then repeated real discovery without model
+parameters. Claude reported `opus`/`haiku`, Copilot
+`claude-opus-5.5`/`claude-haiku-5.5`, and OpenCode
+`openai/gpt-6.1-terra`/`openai/gpt-6-luna`; all three follow-up status calls
+were `Aligned`. Copilot and OpenCode retained the same SHA-256 profile hash
+before and after status. The Copilot C# run then used the stored implementation
+profile `claude-opus-5.5`, `high` through the existing interactive sign-in.
+Preflight: 8.725 s; task: 42.025 s; agent exit code 0. Independent acceptance
+found exactly one project, no `PackageReference`, a successful build and run,
+and exactly `MODEL_ROUTING_OK`. No API-key environment variables were passed to
+the child process.
 
 Preparation is not publication evidence. No tag, release page, archive,
 installation, Home sync or rollout is created by this candidate.
