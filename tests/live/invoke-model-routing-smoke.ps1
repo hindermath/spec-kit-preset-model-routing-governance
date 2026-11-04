@@ -117,7 +117,7 @@ function Start-MRSmokeOpenCodeServer {
         }
     } finally { $client.Dispose(); $handler.Dispose() }
     if (-not $ready) {
-        if (-not $process.HasExited) { $process.Kill($true);$process.WaitForExit() }
+        if (-not $process.HasExited) { $process.Kill($true);[void]$process.WaitForExit(2000) }
         $process.Dispose()
         throw 'OpenCode temporary loopback server did not become ready.'
     }
@@ -128,9 +128,12 @@ function Stop-MRSmokeOpenCodeServer {
     param($Server)
     if ($null -eq $Server) { return }
     try {
-        if (-not $Server.process.HasExited) { $Server.process.Kill($true);$Server.process.WaitForExit() }
-        [void]$Server.stdout.GetAwaiter().GetResult()
-        [void]$Server.stderr.GetAwaiter().GetResult()
+        if (-not $Server.process.HasExited) {
+            $Server.process.Kill($true)
+            if (-not $Server.process.WaitForExit(2000)) { throw 'OpenCode server termination exceeded cleanup budget.' }
+        }
+        $drain = [Threading.Tasks.Task]::WhenAll([Threading.Tasks.Task[]]@($Server.stdout,$Server.stderr))
+        if (-not $drain.Wait(2000)) { throw 'OpenCode server output drain exceeded cleanup budget.' }
     } finally { $Server.process.Dispose() }
 }
 
@@ -314,6 +317,8 @@ $report = [ordered]@{
     selectionSource=$(if ($SelectionFile) { 'local-override' } else { 'versioned-defaults' })
     maxRetries=$MaxRetries;environment=$null;harnesses=@();finalStatus='INFRA_ERROR';cleanup=[ordered]@{}
 }
+$reportName = '{0}-{1}.json' -f $startedAt.ToString('yyyyMMddTHHmmssZ'),$commit.Substring(0,12)
+$reportPath = Join-Path $reportRoot $reportName
 $temporaryRoot = $null
 $server = $null
 $globalFailure = $null
@@ -370,6 +375,9 @@ try {
     foreach ($harnessValue in $configuration.harnesses) {
         $harness = [hashtable]$harnessValue
         $attempts = [Collections.Generic.List[object]]::new()
+        $harnessReport = [ordered]@{harness=[string]$harness.label;finalStatus='INFRA_ERROR';attempts=@()}
+        $harnessReports.Add($harnessReport)
+        $report.harnesses = @($harnessReports)
         for ($attempt = 1; $attempt -le (1 + $MaxRetries); $attempt++) {
             try {
                 $attemptResult = Invoke-MRSmokeHarnessAttempt -Harness $harness -Attempt $attempt -Configuration $configuration `
@@ -383,10 +391,12 @@ try {
                 }
             }
             $attempts.Add($attemptResult)
+            $harnessReport.attempts = @($attempts)
+            $harnessReport.finalStatus = Get-MRSmokeFinalStatus -Attempts @($attempts)
+            Write-MRSmokeJsonAtomic -Path $reportPath -Value $report
             [ordered]@{harness=$harness.label;attempt=$attempt;status=$attemptResult.status;model=$attemptResult.model;reasoningEffort=$attemptResult.reasoningEffort} | ConvertTo-Json -Compress
             if ($attemptResult.status -ceq 'PASS') { break }
         }
-        $harnessReports.Add([ordered]@{harness=[string]$harness.label;finalStatus=(Get-MRSmokeFinalStatus -Attempts @($attempts));attempts=@($attempts)})
         $report.harnesses = @($harnessReports)
     }
     if (@($report.harnesses | Where-Object { $_.finalStatus -notin @('PASS','PASS_WITH_RETRY') }).Count -eq 0) {

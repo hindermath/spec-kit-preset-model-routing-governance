@@ -104,6 +104,11 @@ for every other final state.
 
 ### Bounded failure diagnostics
 
+Process exit and inherited output-pipe draining share the same deadline.
+Server cleanup waits at most two seconds per step. After each completed
+attempt, the report is written atomically to disk so a later hang cannot
+discard earlier results.
+
 Before cleanup, a failed attempt records redacted stdout/stderr for preflight,
 agent, build and run, the parsed Boolean agent result, and a relative project
 inventory. Bounded text is included for `.csproj`, `Program.cs`,

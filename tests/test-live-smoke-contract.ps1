@@ -81,6 +81,23 @@ param([Parameter(Mandatory)][AllowEmptyString()][string] $Value)
     Assert-SmokeContract $timedOut 'bounded process timeout'
     Assert-SmokeContract (-not (Test-Path $sentinel)) 'timeout kills the descendant process tree'
 
+    $pipeFixture = Join-Path $temporary 'inherited-pipe.ps1'
+    @'
+$start = [Diagnostics.ProcessStartInfo]::new('pwsh')
+$start.UseShellExecute = $false
+foreach ($argument in @('-NoProfile','-Command','Start-Sleep -Seconds 3')) { [void]$start.ArgumentList.Add($argument) }
+$child = [Diagnostics.Process]::Start($start)
+$child.Dispose()
+'@ | Set-Content $pipeFixture
+    $pipeWatch = [Diagnostics.Stopwatch]::StartNew()
+    $pipeTimeout = $false
+    try {
+        $null = Invoke-MRSmokeProcess -ChildScript $childScript -Executable 'pwsh' -Arguments @('-NoProfile','-File',$pipeFixture) `
+            -WorkingDirectory $working -TimeoutSeconds 1
+    } catch { $pipeTimeout = $_.Exception.Message -like '*TIMEOUT:*' }
+    Assert-SmokeContract ($pipeTimeout -and $pipeWatch.Elapsed.TotalSeconds -lt 3) 'inherited pipe drain obeys deadline'
+    Start-Sleep -Seconds 3
+
     $baseProfile = @{model='fixture-model';reasoningEffort='high'}
     $agy = $baseProfile.Clone();$agy.arguments=@('--model','{model}','--effort','{reasoningEffort}','--mode','accept-edits','--print','{prompt}')
     $agyArguments = @(Expand-MRSmokeProfileArguments $agy $working (Join-Path $temporary 'agy.json') 'Antigravity' 'fixture prompt')

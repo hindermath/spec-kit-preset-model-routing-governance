@@ -104,14 +104,22 @@ function Invoke-MRSmokeProcess {
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = New-MRSmokeProcessStartInfo @startArguments
     $watch = [Diagnostics.Stopwatch]::StartNew()
+    $cancellation = [Threading.CancellationTokenSource]::new()
     try {
         [void] $process.Start()
-        $stdout = $process.StandardOutput.ReadToEndAsync()
-        $stderr = $process.StandardError.ReadToEndAsync()
+        $stdout = $process.StandardOutput.ReadToEndAsync($cancellation.Token)
+        $stderr = $process.StandardError.ReadToEndAsync($cancellation.Token)
         if (-not $process.WaitForExit([Math]::Max(1,[int][Math]::Floor($TimeoutSeconds * 1000)))) {
             $process.Kill($true)
-            $process.WaitForExit()
+            [void]$process.WaitForExit(2000)
             throw "TIMEOUT: process tree exceeded the remaining $([Math]::Round($TimeoutSeconds,3))-second budget."
+        }
+        # Descendants can retain inherited pipes after their parent exits. Drain
+        # only within the original deadline, never via an unbounded GetResult.
+        $remainingMilliseconds = [Math]::Max(1,[int](($TimeoutSeconds - $watch.Elapsed.TotalSeconds) * 1000))
+        $drain = [Threading.Tasks.Task]::WhenAll([Threading.Tasks.Task[]]@($stdout,$stderr))
+        if (-not $drain.Wait($remainingMilliseconds)) {
+            throw 'TIMEOUT: inherited output pipes remained open after child exit.'
         }
         return [ordered]@{
             exitCode = $process.ExitCode
@@ -121,7 +129,9 @@ function Invoke-MRSmokeProcess {
         }
     } finally {
         $watch.Stop()
+        $cancellation.Cancel()
         $process.Dispose()
+        $cancellation.Dispose()
     }
 }
 

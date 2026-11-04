@@ -108,6 +108,11 @@ mit Exitcode 1.
 
 ### Begrenzte Fehlerdiagnose
 
+Prozessende und das Lesen geerbter Ausgabekanaele teilen sich dasselbe
+Zeitbudget. Server-Cleanup wartet hoechstens zwei Sekunden je Schritt.
+Nach jedem abgeschlossenen Versuch wird der Bericht atomar auf Platte
+geschrieben; ein spaeterer Haenger darf fruehere Ergebnisse nicht verlieren.
+
 Bei einem fehlgeschlagenen Versuch sichert der Runner vor dem Cleanup
 redigiertes stdout/stderr fuer Preflight, Agent, Build und Run, das geparste
 boolesche Agentenergebnis sowie ein relatives Projektinventar. Fuer `.csproj`,
