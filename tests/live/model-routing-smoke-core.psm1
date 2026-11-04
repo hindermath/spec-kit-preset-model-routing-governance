@@ -1,5 +1,6 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot '../../scripts/execution-policy.psm1') -Force
 
 function Read-MRSmokeConfiguration {
     [CmdletBinding()]
@@ -160,49 +161,13 @@ function Expand-MRSmokeProfileArguments {
         [Parameter(Mandatory)][string] $Family,
         [Parameter(Mandatory)][string] $Prompt
     )
-    $model = [string] $RunnerProfile.model
-    $effort = [string] $RunnerProfile.reasoningEffort
-    $arguments = @($RunnerProfile.arguments | ForEach-Object {
-        ([string]$_).Replace('{model}',$model).Replace('{reasoningEffort}',$effort).Replace('{worktree}',$Worktree).Replace('{outputFile}',$OutputFile)
-    })
-    $jsonIndex = [Array]::IndexOf([object[]]$arguments,'-HarnessArgumentsJson')
-    if ($jsonIndex -ge 0) {
-        $harnessArguments = [Collections.Generic.List[string]]::new()
-        foreach ($argument in @($arguments[$jsonIndex + 1] | ConvertFrom-Json)) {
-            $harnessArguments.Add(([string]$argument).Replace('{model}',$model).Replace('{reasoningEffort}',$effort).Replace('{worktree}',$Worktree).Replace('{prompt}',$Prompt))
-        }
-        $promptIndex = $harnessArguments.IndexOf('--prompt')
-        switch ($Family) {
-            'Copilot' {
-                if ($promptIndex -lt 0) { throw 'Copilot prompt argument missing.' }
-                foreach ($permission in @('--trust-folder','--allow-tool=write','--allow-tool=shell')) {
-                    $harnessArguments.Insert($promptIndex,$permission); $promptIndex++
-                }
-            }
-            'Claude' {
-                $promptIndex = $harnessArguments.Count - 1
-                foreach ($permission in @('--allowedTools','Bash','Write','Edit','--')) {
-                    $harnessArguments.Insert($promptIndex,$permission); $promptIndex++
-                }
-            }
-            'OpenCode' {
-                $agentIndex = $harnessArguments.IndexOf('--agent')
-                if ($agentIndex -lt 0) { throw 'OpenCode agent argument missing.' }
-                $harnessArguments.Insert($agentIndex,'--auto')
-            }
-        }
-        $arguments[$jsonIndex + 1] = ConvertTo-Json -InputObject @($harnessArguments) -Compress
-    } else {
-        $arguments = @($arguments | ForEach-Object { ([string]$_).Replace('{prompt}',$Prompt) })
-        if ($Family -eq 'Antigravity') {
-            $printIndex = [Array]::IndexOf([object[]]$arguments,'--print')
-            if ($printIndex -lt 1) { throw 'agy print argument missing.' }
-            $permissionPath = Resolve-MRSmokePhysicalPath $Worktree
-            $settings = @{permissions=@{allow=@('command(*)',"write_file($permissionPath)")}} | ConvertTo-Json -Depth 5 -Compress
-            $arguments = @($arguments[0..($printIndex - 1)] + @('--settings',$settings) + $arguments[$printIndex..($arguments.Count - 1)])
-        }
+    $executionProfile = $RunnerProfile.Clone()
+    if (-not $executionProfile.ContainsKey('agentFamily')) { $executionProfile.agentFamily = $Family }
+    if (-not $executionProfile.ContainsKey('routingRole')) { $executionProfile.routingRole = 'long-running-implementation' }
+    return Expand-MRExecutionArguments -ExecutionProfile $executionProfile -Values @{
+        model=[string]$executionProfile.model;reasoningEffort=[string]$executionProfile.reasoningEffort
+        worktree=(Resolve-MRExecutionPath $Worktree);outputFile=$OutputFile;prompt=$Prompt
     }
-    return $arguments
 }
 
 function ConvertTo-MRSmokeDiagnosticText {

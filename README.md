@@ -1,5 +1,7 @@
 # Model Routing Governance
 
+[Normale Runner-Ausfuehrung / Production runner integration](docs/execution-integration.md)
+
 <!-- current-package: 0.2.4 -->
 
 Paketkennung: **v0.2.4**. [Vorbereitung und Veröffentlichungsgrenze](docs/release-0.2.4-validation.md). Die Release-Seite und der externe Archivnachweis belegen die Veröffentlichung, nicht dieser Vorbereitungsstand. Frühere Versionsnachweise unten bleiben historisch.

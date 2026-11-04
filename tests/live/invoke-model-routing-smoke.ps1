@@ -19,6 +19,9 @@
 .PARAMETER SelectionFile
     DE: Optionale lokale, nicht versionierte Auswahlmatrix.
     EN: Optional local, unversioned selection matrix.
+.PARAMETER AutonomousRunnerSource
+    DE: Optionaler Quellkandidat fuer Integration ueber den normalen Phasenrunner.
+    EN: Optional source candidate for integration through the production phase runner.
 .EXAMPLE
     pwsh -NoProfile -File tests/live/invoke-model-routing-smoke.ps1 -ConfirmLiveRun
 .EXAMPLE
@@ -28,7 +31,8 @@
 param(
     [switch] $ConfirmLiveRun,
     [ValidateRange(0,3)][int] $MaxRetries = 0,
-    [string] $SelectionFile = ''
+    [string] $SelectionFile = '',
+    [string] $AutonomousRunnerSource = ''
 )
 
 Set-StrictMode -Version Latest
@@ -240,14 +244,36 @@ function Invoke-MRSmokeHarnessAttempt {
         if ($preflight.exitCode -ne 0 -or $preflight.stdout.Trim() -cne 'MODEL_READY') { throw "$label preflight failed with exit $($preflight.exitCode)." }
 
         $stage = 'task'
-        [string[]]$executionArguments = @(Expand-MRSmokeProfileArguments -RunnerProfile $implementation -Worktree $worktree `
-            -OutputFile $outputFile -Family $family -Prompt ([string]$Configuration.task.prompt))
-        $task = Invoke-MRSmokeProcess -ChildScript $childScript -Executable ([string]$implementation.executable) `
+        $taskExecutable = [string]$implementation.executable
+        if ($AutonomousRunnerSource) {
+            $installedScripts = Join-Path $worktree '.specify/presets/model-routing-governance/scripts'
+            Copy-Item (Join-Path $RepositoryRoot 'scripts/execution-policy.psm1') $installedScripts
+            $catalogRoot = Join-Path $worktree '.specify/presets/autonomous-run-governance'
+            [void](New-Item -ItemType Directory -Path $catalogRoot -Force)
+            Copy-Item (Join-Path $AutonomousRunnerSource 'model-routing.json') $catalogRoot
+            $statePath = Join-Path $worktree 'integration-state.json'
+            $state = @{runId=[guid]::NewGuid().ToString();status='Active';authorityRevalidationRequired=$false
+                routing=@{policy='balanced-v1';fallbackPolicy='fail-closed';phases=@(@{
+                    phaseId='implementation';command='speckit.implement';routingRole='long-running-implementation'
+                    runnerProfile='N/A';dependsOn=@();status='Pending'})}}
+            $state | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $statePath
+            Copy-Item (Join-Path $AutonomousRunnerSource 'templates/autonomous-phase-result-template.json') $worktree
+            $phasePrompt = [string]$Configuration.task.prompt + "`nThis is an explicitly authorised isolated integration task; there is no other feature to implement. Also write verification.txt containing MODEL_ROUTING_OK with LF. For the final JSON use autonomous-phase-result-template.json instead of the earlier boolean result: phaseId implementation, fresh UUID attemptId, outcome Completed, expectedTasks/completedTasks 1, blockedReason empty, gatesSatisfied true, payloadPath verification.txt, and the actual SHA-256 of that UTF-8 payload. Return that JSON object. For native profiles write it to the provided output path as requested by the normal runner."
+            $taskExecutable = 'pwsh'
+            $executionArguments = @('-NoProfile','-File',(Join-Path $AutonomousRunnerSource 'scripts/invoke-autonomous-model-phase.ps1'),
+                '-Action','Run','-State',$statePath,'-RunnerConfig',$configPath,'-RoutingRoot',(Join-Path $worktree '.specify/presets'),
+                '-PhaseId','implementation','-Worktree',$worktree,'-OutputDirectory',(Join-Path $worktree '.integration-result'),'-Prompt',$phasePrompt)
+        } else {
+            [string[]]$executionArguments = @(Expand-MRSmokeProfileArguments -RunnerProfile $implementation -Worktree $worktree `
+                -OutputFile $outputFile -Family $family -Prompt ([string]$Configuration.task.prompt))
+        }
+        $task = Invoke-MRSmokeProcess -ChildScript $childScript -Executable $taskExecutable `
             -Arguments $executionArguments -WorkingDirectory $worktree `
             -TimeoutSeconds (Get-MRSmokeRemaining $budget $Configuration.attemptBudgetSeconds) -RemovedEnvironment $removedEnvironment
         $result.taskSeconds = $task.seconds
         $result.agentExitCode = $task.exitCode
         if ($task.exitCode -ne 0) { throw "$label task failed with exit $($task.exitCode)." }
+        if ($AutonomousRunnerSource -and ($task.stdout | ConvertFrom-Json).status -cne 'COMPLETED') { throw 'Production runner did not complete semantic phase validation.' }
         $budget.Stop()
 
         $stage = 'verification'
@@ -292,6 +318,7 @@ function Invoke-MRSmokeHarnessAttempt {
 }
 
 if (-not $ConfirmLiveRun) { throw 'Live model use is blocked. Repeat with -ConfirmLiveRun after explicit authorization.' }
+if ($AutonomousRunnerSource) { $AutonomousRunnerSource = Resolve-MRSmokePhysicalPath $AutonomousRunnerSource }
 $configuration = Read-MRSmokeConfiguration $defaultsPath
 if ($MaxRetries -gt [int]$configuration.maxRetriesUpperBound) { throw 'MaxRetries exceeds the versioned upper bound.' }
 if ($SelectionFile) {
@@ -315,7 +342,7 @@ $report = [ordered]@{
     powershellVersion=$PSVersionTable.PSVersion.ToString();repositoryCommit=$commit
     defaultsSha256=$defaultHash;effectiveConfigurationSha256=$effectiveHash
     selectionSource=$(if ($SelectionFile) { 'local-override' } else { 'versioned-defaults' })
-    maxRetries=$MaxRetries;environment=$null;harnesses=@();finalStatus='INFRA_ERROR';cleanup=[ordered]@{}
+    maxRetries=$MaxRetries;executionMode=$(if ($AutonomousRunnerSource) {'production-phase-runner'} else {'shared-profile-execution'});environment=$null;harnesses=@();finalStatus='INFRA_ERROR';cleanup=[ordered]@{}
 }
 $reportName = '{0}-{1}.json' -f $startedAt.ToString('yyyyMMddTHHmmssZ'),$commit.Substring(0,12)
 $reportPath = Join-Path $reportRoot $reportName
