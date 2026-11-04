@@ -475,7 +475,7 @@ try {
     try { Stop-MRSmokeOpenCodeServer $server }
     catch { $serverStopped = $false;if (-not $globalFailure) { $globalFailure = 'Temporary OpenCode server cleanup failed.' } }
     try {
-        if ($temporaryRoot -and (Test-Path -LiteralPath $temporaryRoot)) { Remove-Item -LiteralPath $temporaryRoot -Recurse -Force }
+        if ($temporaryRoot -and (Test-Path -LiteralPath $temporaryRoot)) { Remove-MRSmokeTemporaryRoot -Path $temporaryRoot -Confirm:$false }
     } catch {
         if (-not $globalFailure) { $globalFailure = 'Temporary smoke-test directory cleanup failed.' }
     }

@@ -20,6 +20,9 @@ Import-Module (Join-Path $live 'model-routing-feature-fixture.psm1') -Force
 $temporary=Join-Path ([IO.Path]::GetTempPath()) "validation-hardening-$([guid]::NewGuid().ToString('N'))"
 [void](New-Item -ItemType Directory -Path $temporary)
 try{
+    $refused=$false
+    try{Remove-MRSmokeTemporaryRoot -Path $temporary -Confirm:$false}catch{$refused=$true}
+    if(-not $refused -or -not(Test-Path $temporary)){throw 'Unsafe cleanup target was accepted.'}
     foreach($invalid in @($null,@{},@{outcome='Blocked'},@{read=$true;writeDenied=$false},@{read='true';writeDenied='true'})){
         if(Test-MRSmokeReadOnlyAttestation $invalid){throw 'Invalid read-only attestation accepted.'}
     }

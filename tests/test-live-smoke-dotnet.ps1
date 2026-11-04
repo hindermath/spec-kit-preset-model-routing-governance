@@ -24,6 +24,7 @@ if (-not ((& dotnet --version).Trim().StartsWith('10.'))) { throw '.NET SDK 10 r
 $temporary = Join-Path ([IO.Path]::GetTempPath()) "routing-dotnet-contract-$([guid]::NewGuid().ToString('N'))"
 [void](New-Item -ItemType Directory -Path $temporary)
 $regressionCompleted=$false
+$primaryFailure=$null
 try {
     $physical = Resolve-MRSmokePhysicalPath $temporary
     [void](New-Item -ItemType Directory -Path (Join-Path $physical 'project'))
@@ -37,7 +38,9 @@ try {
     [IO.File]::WriteAllText((Join-Path $worktree 'Probe.csproj'),'<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>')
     [IO.File]::WriteAllText((Join-Path $worktree 'Program.cs'),'System.Console.WriteLine("MODEL_ROUTING_OK");')
     $environment = @{DOTNET_CLI_HOME=$worktree;NUGET_PACKAGES=(Join-Path $worktree '.packages');DOTNET_CLI_TELEMETRY_OPTOUT='1';DOTNET_GENERATE_ASPNET_CERTIFICATE='false';MSBUILDDISABLENODEREUSE='1'}
-    $common = @{ChildScript=(Join-Path $live 'invoke-smoke-child.ps1');Executable='dotnet';WorkingDirectory=$worktree;TimeoutSeconds=30;Environment=$environment}
+    # Hosted Windows cold SDK startup is not an agent task; keep its model-free
+    # allowance separate from the unchanged 120-second live-harness deadline.
+    $common = @{ChildScript=(Join-Path $live 'invoke-smoke-child.ps1');Executable='dotnet';WorkingDirectory=$worktree;TimeoutSeconds=90;Environment=$environment}
     $project = Join-Path $worktree 'Probe.csproj'
     $sharedCompilation=if($VerifyCompilerCleanup){'-p:UseSharedCompilation=true'}else{'-p:UseSharedCompilation=false'}
     $build = Invoke-MRSmokeProcess @common -Arguments @('build',$project,'--configfile',(Join-Path $worktree 'NuGet.Config'),$sharedCompilation)
@@ -52,11 +55,15 @@ try {
     if ($run.exitCode -ne 0 -or $run.stdout.TrimEnd("`r","`n") -cne 'MODEL_ROUTING_OK') { throw "Output verification failed: $($run.stderr)" }
     $regressionCompleted=$true
     'PASS: physical-path .NET build/rebuild/run regression; no models or package sources.'
+} catch {
+    $primaryFailure=$_
+    throw
 } finally {
     if($VerifyCompilerCleanup){
         $cleanup=Stop-MRSmokeOwnedCompilers -Confirm:$false
         $cleanup|ConvertTo-Json -Compress
     }
-    Remove-Item -LiteralPath $temporary -Recurse -Force
+    try{Remove-MRSmokeTemporaryRoot -Path $temporary -Confirm:$false}
+    catch{if($primaryFailure){Write-Warning "Additional temporary cleanup failure: $($_.Exception.Message)"}else{throw}}
     if($VerifyCompilerCleanup -and $regressionCompleted -and ($cleanup.failed -ne 0 -or $cleanup.tracked -lt 1)){throw 'Compiler ownership/cleanup was not demonstrated.'}
 }

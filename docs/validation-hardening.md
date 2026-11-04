@@ -166,3 +166,19 @@ Combined report SHA-256:
 `7cf0d2a78db3c4b3c3f67c545f82b291a0ca6531252b7164e905bfa650ff2585`.
 Raw evidence remains local; historical reports are unchanged. No merge,
 release, installation, Home sync or rollout was performed.
+
+DE: Eine weitere native Windows-Pruefung erreichte danach alle neuen
+Vertragstests, scheiterte aber beim Loeschen des gesperrten temporaeren
+.NET-Projektverzeichnisses. Der Cleanup wiederholt nun hoechstens fuenf
+Sekunden und akzeptiert nur direkte, nicht verlinkte Test-Stammverzeichnisse
+mit bekanntem GUID-Namensschema unter dem physischen Temp-Verzeichnis. Eine
+urspruengliche Testausnahme wird nicht durch einen Cleanup-Fehler ersetzt.
+Der modellfreie Cold-SDK-Test hat separat 90 Sekunden je Prozess; Live-
+Harness-Budgets bleiben unveraendert. Native Nachpruefung erfolgt in CI.
+
+EN: A subsequent Windows run reached all new contract tests but failed while
+deleting a locked temporary .NET project directory. Cleanup now retries for at
+most five seconds and accepts only direct, non-linked GUID-named test roots
+under the physical temp directory. Cleanup cannot replace the original test
+exception. The model-free cold-SDK test separately allows 90 seconds per
+process; live harness budgets are unchanged. Native verification remains in CI.

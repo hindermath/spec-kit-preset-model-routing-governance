@@ -80,6 +80,26 @@ function Resolve-MRSmokePhysicalPath {
 
 Export-ModuleMember -Function Resolve-MRSmokePhysicalPath
 
+function Remove-MRSmokeTemporaryRoot {
+    [CmdletBinding(SupportsShouldProcess)]
+    param([Parameter(Mandatory)][string]$Path,[ValidateRange(1,10)][int]$TimeoutSeconds=5)
+    $full=[IO.Path]::GetFullPath($Path).TrimEnd([char[]]@('/','\'))
+    $name=[IO.Path]::GetFileName($full)
+    $comparison=if($IsWindows){[StringComparison]::OrdinalIgnoreCase}else{[StringComparison]::Ordinal}
+    if($name -notmatch '^(model-routing-smoke|routing-dotnet-contract)-[0-9a-f]{32}$' -or
+        -not (Resolve-MRSmokePhysicalPath (Split-Path -Parent $full)).Equals((Resolve-MRSmokePhysicalPath ([IO.Path]::GetTempPath())),$comparison)){
+        throw 'Cleanup target is not a recognised direct temporary test root.'
+    }
+    if(-not $PSCmdlet.ShouldProcess($full,'Remove temporary test root with bounded lock retry')){return}
+    $watch=[Diagnostics.Stopwatch]::StartNew()
+    while(Test-Path -LiteralPath $full){
+        if((Get-Item -LiteralPath $full -Force).LinkTarget){throw 'Refusing a linked temporary root.'}
+        try{Remove-Item -LiteralPath $full -Recurse -Force -ErrorAction Stop}
+        catch{if($watch.Elapsed.TotalSeconds -ge $TimeoutSeconds){throw};Start-Sleep -Milliseconds 200}
+    }
+}
+Export-ModuleMember -Function Remove-MRSmokeTemporaryRoot
+
 function New-MRSmokeProcessStartInfo {
     [CmdletBinding()]
     param(
