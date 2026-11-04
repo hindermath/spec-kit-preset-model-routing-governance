@@ -27,15 +27,17 @@ required or authorized. Re-evaluate on SDK, CLI or OpenCode API drift.
 
 DE: Die deterministische Suite bestand am 2026-11-04 unter macOS: Bash- und
 PowerShell-Discovery, 193 additive Adapter-/Legacy-Paritätsprüfungen, 184
-Auswahlprüfungen, Ergebnistransport, sieben Node-/SDK-/HTTP-Tests,
+Auswahlprüfungen, 28 plattformneutrale Smoke-Vertragsprüfungen,
+Ergebnistransport, sieben Node-/SDK-/HTTP-Tests,
 Dokumentations- und Release-Verträge, PSScriptAnalyzer 1.25.0, `git diff
 --check` und Gitleaks. Die OpenCode-Fixture prüft beide Reasoning-Formen:
 `--variant` und `provider/model#variant`.
 
 EN: The deterministic suite passed on macOS on 2026-11-04: Bash and PowerShell
-discovery, 193 additive adapter/legacy parity checks, 184 selection checks,
-result transport, seven Node/SDK/HTTP tests, documentation and release
-contracts, PSScriptAnalyzer 1.25.0, `git diff --check`, and Gitleaks. The
+discovery, 193 additive adapter/legacy parity checks, 184 selection checks, 28
+platform-neutral smoke-contract checks, result transport, seven Node/SDK/HTTP
+tests, documentation and release contracts, PSScriptAnalyzer 1.25.0, `git diff
+--check`, and Gitleaks. The
 OpenCode fixture covers both reasoning forms: `--variant` and
 `provider/model#variant`.
 
@@ -101,5 +103,16 @@ the child process.
 
 Preparation is not publication evidence. No tag, release page, archive,
 installation, Home sync or rollout is created by this candidate.
+
+DE: Kuenftige Routing-, Adapter-, Profilrendering- oder Transportaenderungen
+verwenden den [plattformneutralen manuellen Live-Smoke-Test](live-smoke-test.md).
+Seine versionierten Defaults definieren die wiederholbare Akzeptanzmatrix;
+lokale JSON-Berichte bleiben unversioniert, bis ein separates Evidence-Update
+ausdruecklich autorisiert ist.
+
+EN: Future routing, adapter, profile-rendering or transport changes use the
+[platform-neutral manual live smoke test](live-smoke-test.EN.md). Its versioned
+defaults define the repeatable acceptance matrix; local JSON reports remain
+unversioned until a separate evidence update is explicitly authorized.
 
 [Strukturierte Vorbereitung / Structured preparation](release-0.2.4-preparation.json).

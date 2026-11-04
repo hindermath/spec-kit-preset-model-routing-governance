@@ -75,7 +75,7 @@ Leserpfad / Reader path: [Installation](#installation) → [Rollen](#rollen) →
 [English](#english). Fehlende Tools oder mehrdeutige Discovery klären, keinen
 Fallback erfinden. / Resolve reported tool/discovery blockers without guessing.
 
-Neue Adapter / New adapters: [Deutsch](docs/automatic-discovery.md) · [English](docs/automatic-discovery.EN.md). **v0.2.4 ist ein Entwicklungskandidat / is a development candidate.** Kein Release, keine Installation oder Verteilung / no release, installation or rollout.
+Neue Adapter / New adapters: [Deutsch](docs/automatic-discovery.md) · [English](docs/automatic-discovery.EN.md). Plattformneutraler manueller Live-Smoke-Test / platform-neutral manual live smoke test: [Deutsch](docs/live-smoke-test.md) · [English](docs/live-smoke-test.EN.md). **v0.2.4 ist ein Entwicklungskandidat / is a development candidate.** Kein Release, keine Installation oder Verteilung / no release, installation or rollout.
 
 Read-only Installationsprüfung / Read-only installation checks:
 
