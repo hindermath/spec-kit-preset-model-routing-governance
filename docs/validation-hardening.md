@@ -182,3 +182,17 @@ most five seconds and accepts only direct, non-linked GUID-named test roots
 under the physical temp directory. Cleanup cannot replace the original test
 exception. The model-free cold-SDK test separately allows 90 seconds per
 process; live harness budgets are unchanged. Native verification remains in CI.
+
+DE: Die native Nachpruefung von Code-Commit
+`26b1c449a5bf93d5f46a1d246d549e8016392d69` bestand anschliessend auf macOS 15,
+Ubuntu 24.04 und Windows 2022, einschliesslich der modellfreien .NET-10-
+Regression und der neuen Diagnose-/Fixture-Vertraege. Das ist Offline-Evidence;
+native Provider-Live-Nachweise fuer Windows/Ubuntu/WSL2 bleiben offen.
+
+EN: The subsequent native matrix passed code commit
+`26b1c449a5bf93d5f46a1d246d549e8016392d69` on macOS 15, Ubuntu 24.04 and
+Windows 2022, including model-free .NET 10 regression and new diagnostic/
+fixture contracts. This is offline evidence, not Windows/Ubuntu/WSL2 provider
+live evidence. This final documentation receipt changes no tested code.
+
+[Native CI run / Nativer CI-Lauf](https://github.com/hindermath/spec-kit-preset-model-routing-governance/actions/runs/41926306717).
