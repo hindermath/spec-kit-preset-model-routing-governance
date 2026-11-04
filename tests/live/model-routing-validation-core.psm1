@@ -3,9 +3,11 @@ $ErrorActionPreference = 'Stop'
 
 function Invoke-MRValidationPair {
     [CmdletBinding()]
-    param([Parameter(Mandatory)][scriptblock] $RunStage)
+    param([Parameter(Mandatory)][scriptblock] $RunStage,[switch] $IncludeReadOnlyProbe)
     $stages = [Collections.Generic.List[object]]::new()
-    foreach ($mode in @('smoke','production-phase-runner')) {
+    $modes=@('smoke','production-phase-runner')
+    if($IncludeReadOnlyProbe){$modes+='read-only-probe'}
+    foreach ($mode in $modes) {
         try {
             $result = & $RunStage $mode
             if ($result -isnot [Collections.IDictionary]) { throw 'Stage returned no structured result.' }

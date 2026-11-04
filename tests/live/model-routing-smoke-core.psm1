@@ -1,6 +1,11 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot '../../scripts/execution-policy.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'model-routing-process-ownership.psm1') -Force
+$script:trackCompilers=$false
+
+function Enable-MRSmokeCompilerTracking { $script:trackCompilers=$true }
+Export-ModuleMember -Function Enable-MRSmokeCompilerTracking,Stop-MRSmokeOwnedCompilers
 
 function Read-MRSmokeConfiguration {
     [CmdletBinding()]
@@ -97,6 +102,9 @@ function New-MRSmokeProcessStartInfo {
     }
     foreach ($name in $RemovedEnvironment) { [void] $start.Environment.Remove($name) }
     foreach ($entry in $Environment.GetEnumerator()) { $start.Environment[[string]$entry.Key] = [string]$entry.Value }
+    $start.Environment['UseSharedCompilation']='false'
+    $start.Environment['DOTNET_CLI_USE_MSBUILD_SERVER']='0'
+    $start.Environment['MSBUILDDISABLENODEREUSE']='1'
     $start.Environment['PWD'] = $WorkingDirectory
     return $start
 }
@@ -122,11 +130,20 @@ function Invoke-MRSmokeProcess {
     $process.StartInfo = New-MRSmokeProcessStartInfo @startArguments
     $watch = [Diagnostics.Stopwatch]::StartNew()
     $cancellation = [Threading.CancellationTokenSource]::new()
+    $stdout=$null;$stderr=$null;$started=$false
     try {
         [void] $process.Start()
+        $started=$true
+        $tree=@{};$tree[$process.Id]=$process.StartTime.ToUniversalTime().Ticks
         $stdout = $process.StandardOutput.ReadToEndAsync($cancellation.Token)
         $stderr = $process.StandardError.ReadToEndAsync($cancellation.Token)
-        if (-not $process.WaitForExit([Math]::Max(1,[int][Math]::Floor($TimeoutSeconds * 1000)))) {
+        $exited=$false
+        do {
+            if ($script:trackCompilers) { Update-MRSmokeCompilerOwnership -Tree $tree }
+            $remaining=[Math]::Max(1,[int](($TimeoutSeconds-$watch.Elapsed.TotalSeconds)*1000))
+            $exited=$process.WaitForExit([Math]::Min(250,$remaining))
+        } while (-not $exited -and $watch.Elapsed.TotalSeconds -lt $TimeoutSeconds)
+        if (-not $exited) {
             $process.Kill($true)
             [void]$process.WaitForExit(2000)
             throw "TIMEOUT: process tree exceeded the remaining $([Math]::Round($TimeoutSeconds,3))-second budget."
@@ -144,6 +161,14 @@ function Invoke-MRSmokeProcess {
             stderr = $stderr.GetAwaiter().GetResult()
             seconds = [Math]::Round($watch.Elapsed.TotalSeconds,3)
         }
+    } catch {
+        $_.Exception.Data['MRSmokeProcess']=@{
+            exitCode=$(if($started -and $process.HasExited){$process.ExitCode}else{-1})
+            seconds=[Math]::Round($watch.Elapsed.TotalSeconds,3)
+            stdout=$(if($null -ne $stdout -and $stdout.IsCompletedSuccessfully){$stdout.GetAwaiter().GetResult()}else{'<output unavailable before process completion>'})
+            stderr=$(if($null -ne $stderr -and $stderr.IsCompletedSuccessfully){$stderr.GetAwaiter().GetResult()}else{'<output unavailable before process completion>'})
+        }
+        throw
     } finally {
         $watch.Stop()
         $cancellation.Cancel()
@@ -192,8 +217,14 @@ function ConvertTo-MRSmokeDiagnosticText {
     $safe = [regex]::Replace($safe,'\bgh[pousr]_[A-Za-z0-9]{8,}\b','<redacted>')
     $bytes = [Text.Encoding]::UTF8.GetBytes($safe)
     if ($bytes.Length -le $MaxBytes) { return $safe }
-    $prefix = [Text.Encoding]::UTF8.GetString($bytes,0,$MaxBytes)
-    return $prefix + "`n<truncated:originalBytes=$($bytes.Length)>"
+    $marker="`n<truncated:originalBytes=$($bytes.Length)>"
+    $prefixLength=[Math]::Max(0,$MaxBytes-[Text.Encoding]::UTF8.GetByteCount($marker))
+    $decoder=[Text.UTF8Encoding]::new($false,$true)
+    $prefix=''
+    while($prefixLength -gt 0){
+        try{$prefix=$decoder.GetString($bytes,0,$prefixLength);break}catch{$prefixLength--}
+    }
+    return $prefix + $marker
 }
 
 function ConvertTo-MRSmokeProcessDiagnostic {
@@ -214,7 +245,7 @@ function ConvertTo-MRSmokeProcessDiagnostic {
 
 function Get-MRSmokeAgentResultDiagnostic {
     [CmdletBinding()]
-    param([string] $OutputFile = '', [AllowEmptyString()][string] $StandardOutput = '')
+    param([string] $OutputFile = '', [AllowEmptyString()][string] $StandardOutput = '',[string[]] $RedactValues=@(),[hashtable] $PathReplacements=@{})
     $candidate = if ($OutputFile -and (Test-Path -LiteralPath $OutputFile -PathType Leaf)) {
         Get-Content -LiteralPath $OutputFile -Raw
     } else { $StandardOutput }
@@ -223,8 +254,13 @@ function Get-MRSmokeAgentResultDiagnostic {
     catch { return $null }
     if ($value -isnot [Collections.IDictionary]) { return $null }
     $result = [ordered]@{}
-    foreach ($key in @('created','executed','verified')) {
+    foreach ($key in @('created','executed','verified','read','writeDenied')) {
         if ($value.Contains($key) -and $value[$key] -is [bool]) { $result[$key] = [bool]$value[$key] }
+    }
+    foreach ($key in @('outcome','blockedReason','phaseId')) {
+        if ($value.Contains($key) -and $value[$key] -is [string]) {
+            $result[$key]=ConvertTo-MRSmokeDiagnosticText -Text $value[$key] -MaxBytes 4096 -RedactValues $RedactValues -PathReplacements $PathReplacements
+        }
     }
     if ($result.Count -eq 0) { return $null }
     return $result
@@ -288,7 +324,7 @@ function Limit-MRSmokeAttemptDiagnostics {
     }
     $serialized = $Diagnostics | ConvertTo-Json -Depth 50 -Compress
     if ([Text.Encoding]::UTF8.GetByteCount($serialized) -gt $MaxBytes) {
-        foreach ($processName in @('agent','build','run','preflight')) {
+        foreach ($processName in @($Diagnostics.processes.Keys)) {
             $process = $Diagnostics.processes[$processName]
             if ($process -is [Collections.IDictionary]) {
                 $process.stdout = ConvertTo-MRSmokeDiagnosticText -Text ([string]$process.stdout) -MaxBytes 4096

@@ -9,13 +9,17 @@
     transport. Checks runtime files after two builds and removes all test data.
 .EXAMPLE
     pwsh -NoProfile -File tests/test-live-smoke-dotnet.ps1
+.PARAMETER VerifyCompilerCleanup
+    DE: Startet absichtlich einen Compiler-Server und prueft besitzgebundenen Cleanup.
+    EN: Deliberately starts a compiler server and checks ownership-bound cleanup.
 #>
 [CmdletBinding()]
-param()
+param([switch]$VerifyCompilerCleanup)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $live = Join-Path $PSScriptRoot 'live'
 Import-Module (Join-Path $live 'model-routing-smoke-core.psm1') -Force
+if($VerifyCompilerCleanup){Enable-MRSmokeCompilerTracking}
 if (-not ((& dotnet --version).Trim().StartsWith('10.'))) { throw '.NET SDK 10 required.' }
 $temporary = Join-Path ([IO.Path]::GetTempPath()) "routing-dotnet-contract-$([guid]::NewGuid().ToString('N'))"
 [void](New-Item -ItemType Directory -Path $temporary)
@@ -34,7 +38,8 @@ try {
     $environment = @{DOTNET_CLI_HOME=$worktree;NUGET_PACKAGES=(Join-Path $worktree '.packages');DOTNET_CLI_TELEMETRY_OPTOUT='1';DOTNET_GENERATE_ASPNET_CERTIFICATE='false';MSBUILDDISABLENODEREUSE='1'}
     $common = @{ChildScript=(Join-Path $live 'invoke-smoke-child.ps1');Executable='dotnet';WorkingDirectory=$worktree;TimeoutSeconds=30;Environment=$environment}
     $project = Join-Path $worktree 'Probe.csproj'
-    $build = Invoke-MRSmokeProcess @common -Arguments @('build',$project,'--configfile',(Join-Path $worktree 'NuGet.Config'),'-p:UseSharedCompilation=false')
+    $sharedCompilation=if($VerifyCompilerCleanup){'-p:UseSharedCompilation=true'}else{'-p:UseSharedCompilation=false'}
+    $build = Invoke-MRSmokeProcess @common -Arguments @('build',$project,'--configfile',(Join-Path $worktree 'NuGet.Config'),$sharedCompilation)
     if ($build.exitCode -ne 0) { throw "Initial build failed: $($build.stderr)" }
     $project = Join-Path (Resolve-MRSmokePhysicalPath (Join-Path $temporary 'project')) 'Probe.csproj'
     $build = Invoke-MRSmokeProcess @common -Arguments @('build','--no-restore',$project,'-p:UseSharedCompilation=false')
@@ -45,4 +50,11 @@ try {
     $run = Invoke-MRSmokeProcess @common -Arguments @('run','--project',$project,'--no-build','--no-restore')
     if ($run.exitCode -ne 0 -or $run.stdout.TrimEnd("`r","`n") -cne 'MODEL_ROUTING_OK') { throw "Output verification failed: $($run.stderr)" }
     'PASS: physical-path .NET build/rebuild/run regression; no models or package sources.'
-} finally { Remove-Item -LiteralPath $temporary -Recurse -Force }
+} finally {
+    if($VerifyCompilerCleanup){
+        $cleanup=Stop-MRSmokeOwnedCompilers -Confirm:$false
+        $cleanup|ConvertTo-Json -Compress
+        if($cleanup.failed -ne 0 -or $cleanup.tracked -lt 1){throw 'Compiler ownership/cleanup was not demonstrated.'}
+    }
+    Remove-Item -LiteralPath $temporary -Recurse -Force
+}

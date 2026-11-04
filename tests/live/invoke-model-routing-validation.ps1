@@ -15,6 +15,9 @@
 .PARAMETER MaxRetries
     DE: Zusaetzliche Versuche je Harness und Stufe, 0 bis 3 (Standard 0).
     EN: Additional attempts per harness and stage, 0 through 3 (default 0).
+.PARAMETER IncludeReadOnlyProbe
+    DE: Ergaenzt eine dritte Stufe mit negativem Schreibtest.
+    EN: Adds a third stage with a negative write test.
 .EXAMPLE
     pwsh -NoProfile -File tests/live/invoke-model-routing-validation.ps1 -ConfirmLiveRun -MaxRetries 3 -AutonomousRunnerSource /path/to/autonomous-run-governance
 #>
@@ -22,7 +25,8 @@
 param(
     [switch] $ConfirmLiveRun,
     [Parameter(Mandatory)][string] $AutonomousRunnerSource,
-    [ValidateRange(0,3)][int] $MaxRetries = 0
+    [ValidateRange(0,3)][int] $MaxRetries = 0,
+    [switch] $IncludeReadOnlyProbe
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -46,6 +50,7 @@ $runStage = {
     Write-Host "Starting paired stage: $mode (MaxRetries=$MaxRetries)"
     $arguments = @('-NoProfile','-File',$runner,'-ConfirmLiveRun','-MaxRetries',[string]$MaxRetries)
     if ($mode -ceq 'production-phase-runner') { $arguments += @('-AutonomousRunnerSource',$AutonomousRunnerSource) }
+    if ($mode -ceq 'read-only-probe') { $arguments += '-ReadOnlyProbe' }
     $reportLines = [Collections.Generic.List[string]]::new()
     & pwsh @arguments | ForEach-Object {
         $line = [string]$_
@@ -65,14 +70,14 @@ $runStage = {
         reportSha256=(Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
         harnesses=@($report.harnesses | ForEach-Object { @{harness=$_.harness;finalStatus=$_.finalStatus;attempts=@($_.attempts).Count} })}
 }.GetNewClosure()
-$pair = Invoke-MRValidationPair -RunStage $runStage
+$pair = Invoke-MRValidationPair -RunStage $runStage -IncludeReadOnlyProbe:$IncludeReadOnlyProbe
 $consumerAfter = @(& git -C $AutonomousRunnerSource -c core.fsmonitor=false status --porcelain --untracked-files=all)
 $consumerUnchanged = $LASTEXITCODE -eq 0 -and ($consumerAfter -join "`n") -ceq ($consumerStatus -join "`n") -and
     ((& git -C $AutonomousRunnerSource rev-parse HEAD).Trim() -ceq $consumerHead)
 if (-not $consumerUnchanged) { $pair.finalStatus='FAILED' }
 $summary = [ordered]@{schemaVersion='1.0';testId='model-routing-paired-validation';startedAt=$started.ToString('o')
     finishedAt=[DateTime]::UtcNow.ToString('o');repositoryCommit=$head;autonomousRunnerCommit=$consumerHead
-    maxRetries=$MaxRetries;consumerUnchanged=$consumerUnchanged;finalStatus=$pair.finalStatus;stages=$pair.stages}
+    maxRetries=$MaxRetries;includeReadOnlyProbe=[bool]$IncludeReadOnlyProbe;consumerUnchanged=$consumerUnchanged;finalStatus=$pair.finalStatus;stages=$pair.stages}
 Write-MRSmokeJsonAtomic -Path $summaryPath -Value $summary
 $summary | ConvertTo-Json -Depth 20
 Write-Host "Combined report: $summaryPath"

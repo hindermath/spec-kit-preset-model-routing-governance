@@ -24,6 +24,9 @@ $callback={param($mode);@{mode=$mode;finalStatus='PASS_WITH_RETRY'}}
 if ((Invoke-MRValidationPair $callback).finalStatus -cne 'PASS_WITH_RETRY') { throw 'Retry evidence was lost.' }
 $callback={param($mode);@{mode=$mode;finalStatus='BLOCKED'}}
 if ((Invoke-MRValidationPair $callback).finalStatus -cne 'FAILED') { throw 'Blocked pair accepted.' }
+$callback={param($mode);@{mode=$mode;finalStatus='PASS'}}
+$extended=Invoke-MRValidationPair $callback -IncludeReadOnlyProbe
+if(($extended.stages.mode -join ',') -cne 'smoke,production-phase-runner,read-only-probe'){throw 'Read-only extension order failed.'}
 $LASTEXITCODE=0
 $nativeCallback={
     param($mode)

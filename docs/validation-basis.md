@@ -1,5 +1,7 @@
 # Gemeinsame Testbasis / Paired validation basis
 
+[Umgesetzte Erweiterungen und Grenzen / Implemented hardening and limits](validation-hardening.md)
+
 Documentation impact: `UpdateRequired`. Owner: model-routing and autonomous-run
 preset maintainers. Audience: operators/reviewers. Canonical source: routing
 preset `tests/live/`; consumer integration: autonomous-run preset. Distribution:

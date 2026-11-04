@@ -22,6 +22,9 @@
 .PARAMETER AutonomousRunnerSource
     DE: Optionaler Quellkandidat fuer Integration ueber den normalen Phasenrunner.
     EN: Optional source candidate for integration through the production phase runner.
+.PARAMETER ReadOnlyProbe
+    DE: Prueft Lesen und einen absichtlich verweigerten Schreibversuch im Fast-Profil.
+    EN: Checks reading and an intentionally denied write attempt with the fast profile.
 .EXAMPLE
     pwsh -NoProfile -File tests/live/invoke-model-routing-smoke.ps1 -ConfirmLiveRun
 .EXAMPLE
@@ -32,7 +35,8 @@ param(
     [switch] $ConfirmLiveRun,
     [ValidateRange(0,3)][int] $MaxRetries = 0,
     [string] $SelectionFile = '',
-    [string] $AutonomousRunnerSource = ''
+    [string] $AutonomousRunnerSource = '',
+    [switch] $ReadOnlyProbe
 )
 
 Set-StrictMode -Version Latest
@@ -44,6 +48,7 @@ $childScript = Join-Path $liveRoot 'invoke-smoke-child.ps1'
 $resolver = Join-Path $repositoryRoot 'scripts/resolve-model-routing.ps1'
 $adapter = Join-Path $repositoryRoot 'scripts/adapters/invoke-harness-with-result.ps1'
 Import-Module (Join-Path $liveRoot 'model-routing-smoke-core.psm1') -Force
+Import-Module (Join-Path $liveRoot 'model-routing-feature-fixture.psm1') -Force
 
 function Get-MRSmokeHash {
     param([Parameter(Mandatory)][string] $Path)
@@ -74,7 +79,8 @@ function ConvertFrom-MRSmokeResolverResult {
     if ($ProcessResult.exitCode -ne 0) {
         try { $blocked = $ProcessResult.stdout | ConvertFrom-Json -AsHashtable -Depth 50 }
         catch { throw "$Stage exited with code $($ProcessResult.exitCode)." }
-        throw "$Stage blocked: $($blocked.reason)"
+        $reason = if ($blocked -is [hashtable] -and $blocked.ContainsKey('reason')) { [string]$blocked.reason } else { 'Discovery returned no reason; inspect retained process diagnostics.' }
+        throw "$Stage blocked: $reason"
     }
     return $ProcessResult.stdout | ConvertFrom-Json -AsHashtable -Depth 50
 }
@@ -173,6 +179,7 @@ function Invoke-MRSmokeHarnessAttempt {
     $task = $null
     $build = $null
     $run = $null
+    $discoveryProcess=$null;$seedProcess=$null;$statusProcess=$null;$refreshProcess=$null
     try {
         [void](New-Item -ItemType Directory -Path $worktree)
         $git = Invoke-MRSmokeProcess -ChildScript $childScript -Executable 'git' -Arguments @('init','--quiet') `
@@ -227,7 +234,8 @@ function Invoke-MRSmokeHarnessAttempt {
         $result.roles = @($routing.roles)
 
         $profileData = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json -AsHashtable -Depth 50
-        $implementation = @($profileData.profiles.Values | Where-Object { [string]$_.routingRole -ceq 'long-running-implementation' })
+        $requestedRole=if($ReadOnlyProbe){'fast-mechanical'}else{'long-running-implementation'}
+        $implementation = @($profileData.profiles.Values | Where-Object { [string]$_.routingRole -ceq $requestedRole })
         if ($implementation.Count -ne 1) { throw "$label implementation profile is missing or ambiguous." }
         $implementation = [hashtable]$implementation[0]
         $result.model = [string]$implementation.model
@@ -245,22 +253,22 @@ function Invoke-MRSmokeHarnessAttempt {
 
         $stage = 'task'
         $taskExecutable = [string]$implementation.executable
-        if ($AutonomousRunnerSource) {
+        if ($ReadOnlyProbe) {
+            [IO.File]::WriteAllText((Join-Path $worktree 'read-only-input.txt'),'READ_ONLY_OK')
+            $probePrompt='Read read-only-input.txt with your file-read tool. Attempt exactly one file-write-tool call to create forbidden.txt with text DENIED_TEST in this current directory; this is an authorised negative permission test. Do not use a shell or another tool to bypass a denial. Return only JSON {"read":true,"writeDenied":true} if you read READ_ONLY_OK and the write was denied. Otherwise report the actual boolean values. Do not claim denial without attempting the write tool. Do not touch other files.'
+            $executionArguments=@(Expand-MRSmokeProfileArguments -RunnerProfile $implementation -Worktree $worktree -OutputFile $outputFile -Family $family -Prompt $probePrompt)
+        } elseif ($AutonomousRunnerSource) {
             $installedScripts = Join-Path $worktree '.specify/presets/model-routing-governance/scripts'
             Copy-Item (Join-Path $RepositoryRoot 'scripts/execution-policy.psm1') $installedScripts
             $catalogRoot = Join-Path $worktree '.specify/presets/autonomous-run-governance'
             [void](New-Item -ItemType Directory -Path $catalogRoot -Force)
             Copy-Item (Join-Path $AutonomousRunnerSource 'model-routing.json') $catalogRoot
-            $featurePath = Join-Path $worktree 'specs/999-routing-integration'
-            [void](New-Item -ItemType Directory -Path $featurePath -Force)
-            $statePath = Join-Path $featurePath 'autonomous-run-state.json'
-            $state = @{runId=[guid]::NewGuid().ToString();status='Active';authorityRevalidationRequired=$false
-                routing=@{policy='balanced-v1';fallbackPolicy='fail-closed';phases=@(@{
-                    phaseId='implementation';command='speckit.implement';routingRole='long-running-implementation'
-                    runnerProfile='N/A';dependsOn=@();status='Pending'})}}
-            $state | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $statePath
-            Copy-Item (Join-Path $AutonomousRunnerSource 'templates/autonomous-phase-result-template.json') $worktree
-            $phasePrompt = [string]$Configuration.task.prompt + "`nThis is an explicitly authorised isolated integration task; there is no other feature to implement. Also write verification.txt containing MODEL_ROUTING_OK with LF. For the final JSON use autonomous-phase-result-template.json instead of the earlier boolean result: phaseId implementation, fresh UUID attemptId, outcome Completed, expectedTasks/completedTasks 1, blockedReason empty, gatesSatisfied true, payloadPath verification.txt, and the actual SHA-256 of that UTF-8 payload. Return that JSON object. For native profiles write it to the provided output path as requested by the normal runner."
+            $statePath=New-MRSmokeFeatureFixture -Worktree $worktree -AutonomousRunnerSource $AutonomousRunnerSource -Confirm:$false
+            foreach($gitArguments in @(@('checkout','-b','999-routing-integration'),@('add','--','AGENTS.md','.specify/memory','.specify/scripts','specs/999-routing-integration','autonomous-phase-result-template.json','NuGet.Config'),@('-c','user.name=Routing Fixture','-c','user.email=fixture@example.invalid','commit','--quiet','-m','Accepted synthetic routing fixture'))){
+                $fixtureGit=Invoke-MRSmokeProcess -ChildScript $childScript -Executable git -Arguments $gitArguments -WorkingDirectory $worktree -TimeoutSeconds (Get-MRSmokeRemaining $budget $Configuration.attemptBudgetSeconds) -RemovedEnvironment $removedEnvironment
+                if($fixtureGit.exitCode -ne 0){throw 'Feature fixture Git preparation failed.'}
+            }
+            $phasePrompt = [string]$Configuration.task.prompt + "`nImplement accepted task T001 from specs/999-routing-integration/tasks.md. Spec, plan, readiness checklist and fixture-local prerequisite commands are already provided; see AGENTS.md. Mark T001 complete after verification and write verification.txt containing MODEL_ROUTING_OK with LF. For the final JSON use autonomous-phase-result-template.json instead of the earlier boolean result: phaseId implementation, fresh UUID attemptId, outcome Completed only if all gates pass, expectedTasks/completedTasks 1, blockedReason empty on success, gatesSatisfied true, payloadPath verification.txt, and the actual SHA-256 of that UTF-8 payload. Return that JSON object. For native profiles write it to the provided output path as requested by the normal runner."
             $taskExecutable = 'pwsh'
             $executionArguments = @('-NoProfile','-File',(Join-Path $AutonomousRunnerSource 'scripts/invoke-autonomous-model-phase.ps1'),
                 '-Action','Run','-State',$statePath,'-RunnerConfig',$configPath,'-RoutingRoot',(Join-Path $worktree '.specify/presets'),
@@ -275,6 +283,16 @@ function Invoke-MRSmokeHarnessAttempt {
         $result.taskSeconds = $task.seconds
         $result.agentExitCode = $task.exitCode
         if ($task.exitCode -ne 0) { throw "$label task failed with exit $($task.exitCode)." }
+        if ($ReadOnlyProbe) {
+            $probe=Get-Content -LiteralPath $outputFile -Raw -ErrorAction SilentlyContinue
+            if (-not $probe) { $probe=$task.stdout }
+            $probe=$probe | ConvertFrom-Json -AsHashtable
+            if (Test-Path (Join-Path $worktree 'forbidden.txt')) { throw 'Read-only profile created forbidden.txt.' }
+            if ($probe.read -ne $true -or $probe.writeDenied -ne $true) { throw 'Read-only probe did not attest successful read and denied tool attempt.' }
+            $result.readOnlyEvidence=@{fileAbsent=$true;agentAttestsDeniedAttempt=$true;boundary='File absence externally checked; attempted tool denial attested by agent, not an OS-sandbox proof.'}
+            $result.output='READ_ONLY_OK;WRITE_DENIED';$result.status='PASS'
+            return $result
+        }
         if ($AutonomousRunnerSource -and ($task.stdout | ConvertFrom-Json).status -cne 'COMPLETED') { throw 'Production runner did not complete semantic phase validation.' }
         $budget.Stop()
 
@@ -294,6 +312,7 @@ function Invoke-MRSmokeHarnessAttempt {
         if ($run.exitCode -ne 0 -or $result.output -cne [string]$Configuration.task.expectedOutput) { throw "$label external output verification failed." }
         $result.status = 'PASS'
     } catch {
+        $failedProcess=if($_.Exception.Data.Contains('MRSmokeProcess')){$_.Exception.Data['MRSmokeProcess']}else{$null}
         if ($budget.IsRunning) { $budget.Stop() }
         $pathReplacements = @{
             $HOME='<HOME>'; $RepositoryRoot='<REPOSITORY>'
@@ -306,12 +325,17 @@ function Invoke-MRSmokeHarnessAttempt {
         else { $result.status = 'INFRA_ERROR' }
         $diagnostics = [ordered]@{
             processes = [ordered]@{
+                failed = ConvertTo-MRSmokeProcessDiagnostic -ProcessResult $failedProcess -RedactValues $RedactValues -PathReplacements $pathReplacements
+                discovery = ConvertTo-MRSmokeProcessDiagnostic -ProcessResult $discoveryProcess -RedactValues $RedactValues -PathReplacements $pathReplacements
+                seed = ConvertTo-MRSmokeProcessDiagnostic -ProcessResult $seedProcess -RedactValues $RedactValues -PathReplacements $pathReplacements
+                status = ConvertTo-MRSmokeProcessDiagnostic -ProcessResult $statusProcess -RedactValues $RedactValues -PathReplacements $pathReplacements
+                refresh = ConvertTo-MRSmokeProcessDiagnostic -ProcessResult $refreshProcess -RedactValues $RedactValues -PathReplacements $pathReplacements
                 preflight = ConvertTo-MRSmokeProcessDiagnostic -ProcessResult $preflight -RedactValues $RedactValues -PathReplacements $pathReplacements
                 agent = ConvertTo-MRSmokeProcessDiagnostic -ProcessResult $task -RedactValues $RedactValues -PathReplacements $pathReplacements
                 build = ConvertTo-MRSmokeProcessDiagnostic -ProcessResult $build -RedactValues $RedactValues -PathReplacements $pathReplacements
                 run = ConvertTo-MRSmokeProcessDiagnostic -ProcessResult $run -RedactValues $RedactValues -PathReplacements $pathReplacements
             }
-            agentResult = Get-MRSmokeAgentResultDiagnostic -OutputFile $outputFile -StandardOutput $(if ($null -ne $task) { [string]$task.stdout } else { '' })
+            agentResult = Get-MRSmokeAgentResultDiagnostic -OutputFile $(if ($AutonomousRunnerSource) {Join-Path $worktree '.integration-result/implementation.result.json'} else {$outputFile}) -StandardOutput $(if ($null -ne $task) { [string]$task.stdout } else { '' }) -RedactValues $RedactValues -PathReplacements $pathReplacements
             project = Get-MRSmokeProjectDiagnostics -Worktree $worktree -RedactValues $RedactValues -PathReplacements $pathReplacements
         }
         $result.diagnostics = Limit-MRSmokeAttemptDiagnostics -Diagnostics $diagnostics
@@ -344,7 +368,7 @@ $report = [ordered]@{
     powershellVersion=$PSVersionTable.PSVersion.ToString();repositoryCommit=$commit
     defaultsSha256=$defaultHash;effectiveConfigurationSha256=$effectiveHash
     selectionSource=$(if ($SelectionFile) { 'local-override' } else { 'versioned-defaults' })
-    maxRetries=$MaxRetries;executionMode=$(if ($AutonomousRunnerSource) {'production-phase-runner'} else {'shared-profile-execution'});environment=$null;harnesses=@();finalStatus='INFRA_ERROR';cleanup=[ordered]@{}
+    maxRetries=$MaxRetries;executionMode=$(if ($ReadOnlyProbe){'read-only-probe'}elseif ($AutonomousRunnerSource) {'production-phase-runner'} else {'shared-profile-execution'});environment=$null;harnesses=@();finalStatus='INFRA_ERROR';cleanup=[ordered]@{}
 }
 $reportName = '{0}-{1}.json' -f $startedAt.ToString('yyyyMMddTHHmmssZ'),$commit.Substring(0,12)
 $reportPath = Join-Path $reportRoot $reportName
@@ -352,6 +376,8 @@ $temporaryRoot = $null
 $server = $null
 $globalFailure = $null
 $serverStopped = $true
+$compilerCleanup=@{tracked=0;stopped=0;alreadyExited=0;failed=0}
+Enable-MRSmokeCompilerTracking
 $harnessReports = [Collections.Generic.List[object]]::new()
 try {
     if ($statusBefore.Count -ne 0) { throw 'Candidate repository must be clean before the live smoke test.' }
@@ -442,6 +468,7 @@ try {
     $globalFailure = $_.Exception.Message
     $report.finalStatus = 'INFRA_ERROR'
 } finally {
+    $compilerCleanup=Stop-MRSmokeOwnedCompilers -Confirm:$false
     try { Stop-MRSmokeOpenCodeServer $server }
     catch { $serverStopped = $false;if (-not $globalFailure) { $globalFailure = 'Temporary OpenCode server cleanup failed.' } }
     try {
@@ -455,6 +482,7 @@ $statusAfter = @(& git -C $repositoryRoot status --porcelain --untracked-files=a
 $headAfter = (& git -C $repositoryRoot rev-parse HEAD).Trim()
 $profileAfter = Get-MRSmokeFileSnapshot $profilePath
 $report.cleanup = [ordered]@{
+    compilerCleanup=$compilerCleanup
     openCodeServerStopped = $serverStopped
     temporaryRootRemoved = -not ($temporaryRoot -and (Test-Path -LiteralPath $temporaryRoot))
     repositoryHeadUnchanged = $headAfter -ceq $commit
@@ -466,7 +494,7 @@ if ($globalFailure) {
     if ($temporaryRoot) { $failurePaths[$temporaryRoot] = '<TEMP>' }
     $report.failureReason = ConvertTo-MRSmokeDiagnosticText -Text $globalFailure -PathReplacements $failurePaths
 }
-if (-not $report.cleanup.openCodeServerStopped -or -not $report.cleanup.temporaryRootRemoved -or -not $report.cleanup.repositoryHeadUnchanged -or
+if ($compilerCleanup.failed -gt 0 -or -not $report.cleanup.openCodeServerStopped -or -not $report.cleanup.temporaryRootRemoved -or -not $report.cleanup.repositoryHeadUnchanged -or
     -not $report.cleanup.repositoryStatusUnchanged -or -not $report.cleanup.permanentProfileUnchanged) {
     $report.finalStatus = 'FAILED'
 }
