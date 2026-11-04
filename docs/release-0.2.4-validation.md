@@ -63,8 +63,11 @@ table records each final green run; discovery, preflight and task stayed below
 
 All five final runs contain exactly one C# project, no `PackageReference`, a
 successful `dotnet build --no-restore`, exit code 0 and normalized output
-exactly `MODEL_ROUTING_OK`. Candidate 0.2.4 is therefore **locally
-live-accepted**. This does not authorize delivery.
+exactly `MODEL_ROUTING_OK`. The five-harness functional live proof is therefore
+green. The stricter no-override automatic-routing acceptance remains open:
+Copilot correctly stays fail-closed until its four equal-rank Opus models are
+resolved by explicit selection or a separately approved deterministic policy.
+This evidence does not authorize delivery.
 
 Preparation is not publication evidence. No tag, release page, archive,
 installation, Home sync or rollout is created by this candidate.
