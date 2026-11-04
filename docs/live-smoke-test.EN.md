@@ -92,14 +92,36 @@ agent task per attempt. Build and run each have a separate 30-second limit. The
 application and package restore receive no package source; provider access
 remains necessary for the harness.
 
-Reports are stored locally under `.test-results/model-routing-smoke/` and
-contain commit, platform, configuration hash, every attempt, models, reasoning,
-durations, exit codes, output and cleanup proof. Final states are `PASS`,
+Reports are stored locally under `.test-results/model-routing-smoke/`. Current
+report schema `1.1` contains commit, platform, configuration hash, every
+attempt, models, reasoning, durations, exit codes, output and cleanup proof.
+Historical schema-1.0 reports remain readable. Final states are `PASS`,
 `PASS_WITH_RETRY`, `FAILED`, `BLOCKED`, `TIMEOUT` and `INFRA_ERROR`. Reports are
 Git-ignored. A summary is promoted into release evidence only with explicit
 authority.
 The process exits with code 0 for `PASS` and `PASS_WITH_RETRY`, and with code 1
 for every other final state.
+
+### Bounded failure diagnostics
+
+Before cleanup, a failed attempt records redacted stdout/stderr for preflight,
+agent, build and run, the parsed Boolean agent result, and a relative project
+inventory. Bounded text is included for `.csproj`, `Program.cs`,
+`runtimeconfig.json` and `deps.json`. Other files retain only path, size and
+SHA-256; `.git`, `.specify`, `obj` and other `bin` artifacts remain excluded.
+
+Bearer/Basic authorization, API-key, token and password patterns, known
+temporary credentials, and Home/repository/temp paths are redacted or
+normalized. Each stdout/stderr field is limited to 16 KiB, selected text files
+to 32 KiB, and all diagnostics for one attempt to 128 KiB. Truncation is
+explicitly marked. Full environments, vendor logs, conversations and temporary
+worktrees are not retained.
+
+For exit code 131, inspect `diagnostics.processes.run.stderr`, the recorded
+.NET version/runtime list, and runtimeconfig/deps metadata first. For `expected
+one project, found 0`, inspect agent stderr, `agentResult`, and the project
+inventory first. A diagnostic report grants neither repair nor delivery
+authority.
 
 ## Documentation decision
 

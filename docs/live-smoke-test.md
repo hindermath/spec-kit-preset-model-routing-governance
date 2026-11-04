@@ -96,14 +96,38 @@ Agentenaufgabe je Versuch. Build und Run besitzen jeweils ein separates
 30-Sekunden-Limit. Die Anwendung und Paketwiederherstellung erhalten keine
 Paketquelle; Providerzugriffe bleiben fuer den Harness erforderlich.
 
-Berichte liegen lokal unter `.test-results/model-routing-smoke/` und enthalten
-Commit, Plattform, Konfigurationshash, alle Versuche, Modelle, Reasoning,
-Dauern, Exitcodes, Ausgabe und Cleanup-Nachweis. Moegliche Endzustaende sind
+Berichte liegen lokal unter `.test-results/model-routing-smoke/`. Das aktuelle
+Berichtsschema `1.1` enthaelt Commit, Plattform, Konfigurationshash, alle
+Versuche, Modelle, Reasoning, Dauern, Exitcodes, Ausgabe und Cleanup-Nachweis.
+Historische Berichte mit Schema `1.0` bleiben lesbar. Moegliche Endzustaende sind
 `PASS`, `PASS_WITH_RETRY`, `FAILED`, `BLOCKED`, `TIMEOUT` und `INFRA_ERROR`.
 Die Berichte sind git-ignoriert. Eine Zusammenfassung wird nur nach
 ausdruecklicher Autoritaet in Release-Evidence uebernommen.
 Der Prozess endet fuer `PASS` und `PASS_WITH_RETRY` mit Exitcode 0, andernfalls
 mit Exitcode 1.
+
+### Begrenzte Fehlerdiagnose
+
+Bei einem fehlgeschlagenen Versuch sichert der Runner vor dem Cleanup
+redigiertes stdout/stderr fuer Preflight, Agent, Build und Run, das geparste
+boolesche Agentenergebnis sowie ein relatives Projektinventar. Fuer `.csproj`,
+`Program.cs`, `runtimeconfig.json` und `deps.json` wird begrenzter Textinhalt
+aufgenommen. Andere Dateien erhalten nur Pfad, Groesse und SHA-256; `.git`,
+`.specify`, `obj` und uebrige `bin`-Artefakte bleiben ausgeschlossen.
+
+Bearer-/Basic-Autorisierung, API-Key-, Token- und Passwortmuster, bekannte
+temporaere Zugangswerte sowie Home-, Repository- und Temp-Pfade werden
+redigiert oder normalisiert. stdout/stderr sind auf jeweils 16 KiB,
+ausgewaehlte Textdateien auf 32 KiB und die gesamte Diagnose eines Versuchs auf
+128 KiB begrenzt. Trunkierung wird sichtbar markiert. Vollstaendige
+Umgebungen, Anbieterlogs, Gespraechsverlaeufe und temporaere Worktrees werden
+nicht aufbewahrt.
+
+Bei Exitcode 131 zuerst `diagnostics.processes.run.stderr`, die erfasste
+.NET-Version/Runtime-Liste und die Runtimeconfig-/Deps-Metadaten vergleichen.
+Bei `expected one project, found 0` zuerst Agent-stderr, `agentResult` und das
+Projektinventar pruefen. Ein Diagnosebericht ist noch keine Reparatur- oder
+Delivery-Autoritaet.
 
 ## Dokumentationsentscheidung
 

@@ -108,10 +108,62 @@ param([Parameter(Mandatory)][AllowEmptyString()][string] $Value)
     Assert-SmokeContract ((Get-MRSmokeFinalStatus @(@{attempt=1;status='TIMEOUT'})) -ceq 'TIMEOUT') 'timeout result'
     Assert-SmokeContract ((Get-MRSmokeFinalStatus @(@{attempt=1;status='INFRA_ERROR'})) -ceq 'INFRA_ERROR') 'infrastructure result'
 
+    $exitFixture = Join-Path $temporary 'exit-131.ps1'
+    @'
+[Console]::Error.WriteLine("password=super-secret Bearer abcdefghijk " + $PWD.Path)
+exit 131
+'@ | Set-Content $exitFixture
+    $exitResult = Invoke-MRSmokeProcess -ChildScript $childScript -Executable 'pwsh' `
+        -Arguments @('-NoProfile','-File',$exitFixture) -WorkingDirectory $working -TimeoutSeconds 10
+    $processDiagnostic = ConvertTo-MRSmokeProcessDiagnostic -ProcessResult $exitResult -RedactValues @('super-secret') `
+        -PathReplacements @{$working='<WORKTREE>'}
+    Assert-SmokeContract ($processDiagnostic.exitCode -eq 131) 'synthetic exit 131 is retained'
+    Assert-SmokeContract (-not $processDiagnostic.stderr.Contains('super-secret') -and
+        -not $processDiagnostic.stderr.Contains('abcdefghijk') -and $processDiagnostic.stderr.Contains('<WORKTREE>')) 'diagnostic stderr redaction'
+    $truncatedText = ConvertTo-MRSmokeDiagnosticText -Text ('x' * 20000) -MaxBytes 1024
+    Assert-SmokeContract ($truncatedText.Contains('<truncated:originalBytes=20000>')) 'diagnostic text size limit'
+
+    $projectRoot = Join-Path $temporary 'diagnostic-project'
+    [void](New-Item -ItemType Directory -Path (Join-Path $projectRoot '.git') -Force)
+    [void](New-Item -ItemType Directory -Path (Join-Path $projectRoot 'obj') -Force)
+    $binRoot = Join-Path $projectRoot 'bin/Debug/net10.0'
+    [void](New-Item -ItemType Directory -Path $binRoot -Force)
+    Set-Content (Join-Path $projectRoot 'App.csproj') '<Project Sdk="Microsoft.NET.Sdk"></Project>'
+    Set-Content (Join-Path $projectRoot 'Program.cs') 'Console.WriteLine("MODEL_ROUTING_OK");'
+    Set-Content (Join-Path $projectRoot '.git/config') 'secret-token=forbidden'
+    Set-Content (Join-Path $projectRoot 'obj/assets.json') 'excluded'
+    Set-Content (Join-Path $binRoot 'App.runtimeconfig.json') '{"runtimeOptions":{"tfm":"net10.0"}}'
+    Set-Content (Join-Path $binRoot 'App.deps.json') '{"runtimeTarget":{"name":"fixture"}}'
+    [IO.File]::WriteAllBytes((Join-Path $binRoot 'App'),[byte[]](0..255))
+    $projectDiagnostics = Get-MRSmokeProjectDiagnostics -Worktree $projectRoot -RedactValues @('forbidden') -PathReplacements @{$projectRoot='<WORKTREE>'}
+    $projectPaths = @($projectDiagnostics.files | ForEach-Object { [string]$_.path })
+    Assert-SmokeContract ('App.csproj' -cin $projectPaths -and 'Program.cs' -cin $projectPaths) 'project source metadata'
+    Assert-SmokeContract ('bin/Debug/net10.0/App.runtimeconfig.json' -cin $projectPaths -and
+        'bin/Debug/net10.0/App.deps.json' -cin $projectPaths) 'selected runtime metadata'
+    Assert-SmokeContract (@($projectPaths | Where-Object { $_ -like '.git/*' -or $_ -like 'obj/*' -or $_ -ceq 'bin/Debug/net10.0/App' }).Count -eq 0) 'excluded project artifacts'
+    Assert-SmokeContract (@($projectDiagnostics.files | Where-Object { $_.path -ceq 'App.csproj' -and $_.content.Contains('Microsoft.NET.Sdk') }).Count -eq 1) 'bounded project content'
+
+    $emptyProject = Join-Path $temporary 'no-project'
+    [void](New-Item -ItemType Directory -Path $emptyProject)
+    Set-Content (Join-Path $emptyProject 'NuGet.Config') '<configuration />'
+    $emptyDiagnostics = Get-MRSmokeProjectDiagnostics -Worktree $emptyProject
+    Assert-SmokeContract ($emptyDiagnostics.files.Count -eq 1 -and @($emptyDiagnostics.files | Where-Object { $_.path -like '*.csproj' }).Count -eq 0) 'no-project inventory is retained'
+
+    $largeFiles = 1..10 | ForEach-Object { [ordered]@{path="Program$_.cs";size=40000;sha256=('a' * 64);content=('y' * 32768)} }
+    $largeDiagnostics = [ordered]@{processes=[ordered]@{};project=[ordered]@{files=@($largeFiles);truncated=$false}}
+    $limitedDiagnostics = Limit-MRSmokeAttemptDiagnostics -Diagnostics $largeDiagnostics
+    Assert-SmokeContract ([Text.Encoding]::UTF8.GetByteCount(($limitedDiagnostics | ConvertTo-Json -Depth 50 -Compress)) -le 131072) 'per-attempt diagnostic limit'
+    Remove-Item -LiteralPath $projectRoot -Recurse -Force
+    Assert-SmokeContract (($projectDiagnostics | ConvertTo-Json -Depth 20).Contains('App.csproj')) 'diagnostics survive worktree cleanup'
+
     $reportPath = Join-Path $temporary 'report/report.json'
-    Write-MRSmokeJsonAtomic -Path $reportPath -Value @{schemaVersion='1.0';finalStatus='PASS'} -Confirm:$false
+    Write-MRSmokeJsonAtomic -Path $reportPath -Value @{schemaVersion='1.1';testId='model-routing-live-smoke';finalStatus='PASS'} -Confirm:$false
     $report = Get-Content $reportPath -Raw | ConvertFrom-Json -AsHashtable
-    Assert-SmokeContract ($report.schemaVersion -ceq '1.0' -and $report.finalStatus -ceq 'PASS') 'atomic report JSON'
+    Assert-SmokeContract ($report.schemaVersion -ceq '1.1' -and $report.finalStatus -ceq 'PASS') 'atomic report JSON'
+    Assert-SmokeContract ((Read-MRSmokeReport $reportPath).schemaVersion -ceq '1.1') 'current report schema readability'
+    $historicalReport = Join-Path $temporary 'report/historical-1.0.json'
+    @{schemaVersion='1.0';testId='model-routing-live-smoke';finalStatus='FAILED'} | ConvertTo-Json | Set-Content $historicalReport
+    Assert-SmokeContract ((Read-MRSmokeReport $historicalReport).schemaVersion -ceq '1.0') 'historical report schema readability'
 
     $gate = Invoke-MRSmokeProcess -ChildScript $childScript -Executable 'pwsh' `
         -Arguments @('-NoProfile','-File',(Join-Path $liveRoot 'invoke-model-routing-smoke.ps1')) `

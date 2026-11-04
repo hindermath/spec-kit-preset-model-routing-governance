@@ -140,6 +140,8 @@ function Invoke-MRSmokeHarnessAttempt {
         [Parameter(Mandatory)][int] $Attempt,
         [Parameter(Mandatory)][hashtable] $Configuration,
         [Parameter(Mandatory)][string] $TemporaryRoot,
+        [Parameter(Mandatory)][string] $RepositoryRoot,
+        [Parameter(Mandatory)][string[]] $RedactValues,
         [Parameter(Mandatory)][string] $ClaudeSdk,
         [Parameter(Mandatory)][string] $CopilotSdk,
         [Parameter(Mandatory)] $OpenCodeServer
@@ -155,11 +157,15 @@ function Invoke-MRSmokeHarnessAttempt {
         roles=@()
         discoverySeconds=$null;preflightSeconds=$null;taskSeconds=$null
         agentExitCode=$null;buildExitCode=$null;runExitCode=$null;output=$null
-        profileByteIdentical=$null;reason=$null
+        profileByteIdentical=$null;reason=$null;diagnostics=$null
     }
     $stage = 'discovery'
     $budget = [Diagnostics.Stopwatch]::StartNew()
     $removedEnvironment = [string[]]$Configuration.removedChildEnvironment
+    $preflight = $null
+    $task = $null
+    $build = $null
+    $run = $null
     try {
         [void](New-Item -ItemType Directory -Path $worktree)
         $git = Invoke-MRSmokeProcess -ChildScript $childScript -Executable 'git' -Arguments @('init','--quiet') `
@@ -258,11 +264,26 @@ function Invoke-MRSmokeHarnessAttempt {
         $result.status = 'PASS'
     } catch {
         if ($budget.IsRunning) { $budget.Stop() }
-        $result.reason = $_.Exception.Message
+        $pathReplacements = @{
+            $HOME='<HOME>'; $RepositoryRoot='<REPOSITORY>'
+            $TemporaryRoot='<TEMP>'; $worktree='<WORKTREE>'
+        }
+        $result.reason = ConvertTo-MRSmokeDiagnosticText -Text $_.Exception.Message -RedactValues $RedactValues -PathReplacements $pathReplacements
         if ($result.reason -like 'TIMEOUT:*') { $result.status = 'TIMEOUT' }
         elseif ($stage -in @('discovery','preflight')) { $result.status = 'BLOCKED' }
         elseif ($stage -in @('task','verification')) { $result.status = 'FAILED' }
         else { $result.status = 'INFRA_ERROR' }
+        $diagnostics = [ordered]@{
+            processes = [ordered]@{
+                preflight = ConvertTo-MRSmokeProcessDiagnostic -ProcessResult $preflight -RedactValues $RedactValues -PathReplacements $pathReplacements
+                agent = ConvertTo-MRSmokeProcessDiagnostic -ProcessResult $task -RedactValues $RedactValues -PathReplacements $pathReplacements
+                build = ConvertTo-MRSmokeProcessDiagnostic -ProcessResult $build -RedactValues $RedactValues -PathReplacements $pathReplacements
+                run = ConvertTo-MRSmokeProcessDiagnostic -ProcessResult $run -RedactValues $RedactValues -PathReplacements $pathReplacements
+            }
+            agentResult = Get-MRSmokeAgentResultDiagnostic -OutputFile $outputFile -StandardOutput $(if ($null -ne $task) { [string]$task.stdout } else { '' })
+            project = Get-MRSmokeProjectDiagnostics -Worktree $worktree -RedactValues $RedactValues -PathReplacements $pathReplacements
+        }
+        $result.diagnostics = Limit-MRSmokeAttemptDiagnostics -Diagnostics $diagnostics
     }
     return $result
 }
@@ -286,12 +307,12 @@ $defaultHash = Get-MRSmokeHash $defaultsPath
 $effectiveJson = $configuration | ConvertTo-Json -Depth 50 -Compress
 $effectiveHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($effectiveJson))).ToLowerInvariant()
 $report = [ordered]@{
-    schemaVersion='1.0';testId='model-routing-live-smoke';startedAt=$startedAt.ToString('o')
+    schemaVersion='1.1';testId='model-routing-live-smoke';startedAt=$startedAt.ToString('o')
     finishedAt=$null;platform=[Runtime.InteropServices.RuntimeInformation]::OSDescription
     powershellVersion=$PSVersionTable.PSVersion.ToString();repositoryCommit=$commit
     defaultsSha256=$defaultHash;effectiveConfigurationSha256=$effectiveHash
     selectionSource=$(if ($SelectionFile) { 'local-override' } else { 'versioned-defaults' })
-    maxRetries=$MaxRetries;harnesses=@();finalStatus='INFRA_ERROR';cleanup=[ordered]@{}
+    maxRetries=$MaxRetries;environment=$null;harnesses=@();finalStatus='INFRA_ERROR';cleanup=[ordered]@{}
 }
 $temporaryRoot = $null
 $server = $null
@@ -326,13 +347,33 @@ try {
     $server = Start-MRSmokeOpenCodeServer -WorkingDirectory $temporaryRoot -Port $serverPort -Credential $serverCredential `
         -RemovedEnvironment ([string[]]$configuration.removedChildEnvironment)
 
+    $redactValues = [Collections.Generic.List[string]]::new()
+    foreach ($name in [string[]]$configuration.removedChildEnvironment) {
+        $environmentValue = [Environment]::GetEnvironmentVariable($name)
+        if (-not [string]::IsNullOrWhiteSpace($environmentValue)) { $redactValues.Add($environmentValue) }
+    }
+    $redactValues.Add($server.credential.GetNetworkCredential().Password)
+    $environmentPaths = @{$HOME='<HOME>';$repositoryRoot='<REPOSITORY>';$temporaryRoot='<TEMP>'}
+    $dotnetVersion = Invoke-MRSmokeProcess -ChildScript $childScript -Executable 'dotnet' -Arguments @('--version') `
+        -WorkingDirectory $temporaryRoot -TimeoutSeconds 15 -RemovedEnvironment ([string[]]$configuration.removedChildEnvironment)
+    $dotnetRuntimes = Invoke-MRSmokeProcess -ChildScript $childScript -Executable 'dotnet' -Arguments @('--list-runtimes') `
+        -WorkingDirectory $temporaryRoot -TimeoutSeconds 15 -RemovedEnvironment ([string[]]$configuration.removedChildEnvironment)
+    $report.environment = [ordered]@{
+        processArchitecture=[Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
+        osArchitecture=[Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+        dotnetPath=ConvertTo-MRSmokeDiagnosticText -Text ([string](Get-Command dotnet).Source) -RedactValues $redactValues.ToArray() -PathReplacements $environmentPaths
+        dotnetVersion=ConvertTo-MRSmokeDiagnosticText -Text $dotnetVersion.stdout -RedactValues $redactValues.ToArray() -PathReplacements $environmentPaths
+        dotnetRuntimes=ConvertTo-MRSmokeDiagnosticText -Text $dotnetRuntimes.stdout -RedactValues $redactValues.ToArray() -PathReplacements $environmentPaths
+    }
+
     $harnessReports = [Collections.Generic.List[object]]::new()
     foreach ($harnessValue in $configuration.harnesses) {
         $harness = [hashtable]$harnessValue
         $attempts = [Collections.Generic.List[object]]::new()
         for ($attempt = 1; $attempt -le (1 + $MaxRetries); $attempt++) {
             $attemptResult = Invoke-MRSmokeHarnessAttempt -Harness $harness -Attempt $attempt -Configuration $configuration `
-                -TemporaryRoot $temporaryRoot -ClaudeSdk $claudeSdk -CopilotSdk $copilotSdk -OpenCodeServer $server
+                -TemporaryRoot $temporaryRoot -RepositoryRoot $repositoryRoot -RedactValues $redactValues.ToArray() `
+                -ClaudeSdk $claudeSdk -CopilotSdk $copilotSdk -OpenCodeServer $server
             $attempts.Add($attemptResult)
             [ordered]@{harness=$harness.label;attempt=$attempt;status=$attemptResult.status;model=$attemptResult.model;reasoningEffort=$attemptResult.reasoningEffort} | ConvertTo-Json -Compress
             if ($attemptResult.status -ceq 'PASS') { break }
@@ -372,7 +413,9 @@ $report.cleanup = [ordered]@{
     repositoryStatusUnchanged = ($statusBefore -join "`n") -ceq ($statusAfter -join "`n")
     permanentProfileUnchanged = ($profileBefore | ConvertTo-Json -Compress) -ceq ($profileAfter | ConvertTo-Json -Compress)
 }
-if ($globalFailure) { $report.failureReason = $globalFailure }
+if ($globalFailure) {
+    $report.failureReason = ConvertTo-MRSmokeDiagnosticText -Text $globalFailure -PathReplacements @{$HOME='<HOME>';$repositoryRoot='<REPOSITORY>'}
+}
 if (-not $report.cleanup.openCodeServerStopped -or -not $report.cleanup.temporaryRootRemoved -or -not $report.cleanup.repositoryHeadUnchanged -or
     -not $report.cleanup.repositoryStatusUnchanged -or -not $report.cleanup.permanentProfileUnchanged) {
     $report.finalStatus = 'FAILED'

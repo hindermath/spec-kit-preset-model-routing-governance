@@ -27,14 +27,14 @@ required or authorized. Re-evaluate on SDK, CLI or OpenCode API drift.
 
 DE: Die deterministische Suite bestand am 2026-11-04 unter macOS: Bash- und
 PowerShell-Discovery, 193 additive Adapter-/Legacy-Paritätsprüfungen, 184
-Auswahlprüfungen, 28 plattformneutrale Smoke-Vertragsprüfungen,
+Auswahlprüfungen, 40 plattformneutrale Smoke-Vertragsprüfungen,
 Ergebnistransport, sieben Node-/SDK-/HTTP-Tests,
 Dokumentations- und Release-Verträge, PSScriptAnalyzer 1.25.0, `git diff
 --check` und Gitleaks. Die OpenCode-Fixture prüft beide Reasoning-Formen:
 `--variant` und `provider/model#variant`.
 
 EN: The deterministic suite passed on macOS on 2026-11-04: Bash and PowerShell
-discovery, 193 additive adapter/legacy parity checks, 184 selection checks, 28
+discovery, 193 additive adapter/legacy parity checks, 184 selection checks, 40
 platform-neutral smoke-contract checks, result transport, seven Node/SDK/HTTP
 tests, documentation and release contracts, PSScriptAnalyzer 1.25.0, `git diff
 --check`, and Gitleaks. The

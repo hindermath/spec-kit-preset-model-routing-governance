@@ -177,6 +177,142 @@ function Expand-MRSmokeProfileArguments {
     return $arguments
 }
 
+function ConvertTo-MRSmokeDiagnosticText {
+    [CmdletBinding()]
+    param(
+        [AllowEmptyString()][string] $Text = '',
+        [int] $MaxBytes = 16384,
+        [string[]] $RedactValues = @(),
+        [hashtable] $PathReplacements = @{}
+    )
+    if ([string]::IsNullOrEmpty($Text)) { return '' }
+    $safe = $Text.Replace("`r`n","`n").Replace("`r","`n")
+    foreach ($entry in @($PathReplacements.GetEnumerator() | Sort-Object { ([string]$_.Key).Length } -Descending)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$entry.Key)) { $safe = $safe.Replace([string]$entry.Key,[string]$entry.Value) }
+    }
+    foreach ($value in @($RedactValues | Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and $_.Length -ge 4 } | Sort-Object Length -Descending -Unique)) {
+        $safe = $safe.Replace($value,'<redacted>')
+    }
+    $safe = [regex]::Replace($safe,'(?i)\b(Bearer|Basic)\s+[A-Za-z0-9+/=._~-]+','$1 <redacted>')
+    $safe = [regex]::Replace($safe,'(?i)\b(api[_-]?key|token|password|authorization)\b(\s*[:=]\s*)([^\s,;]+)','$1$2<redacted>')
+    $safe = [regex]::Replace($safe,'\bsk-[A-Za-z0-9_-]{8,}\b','<redacted>')
+    $safe = [regex]::Replace($safe,'\bgh[pousr]_[A-Za-z0-9]{8,}\b','<redacted>')
+    $bytes = [Text.Encoding]::UTF8.GetBytes($safe)
+    if ($bytes.Length -le $MaxBytes) { return $safe }
+    $prefix = [Text.Encoding]::UTF8.GetString($bytes,0,$MaxBytes)
+    return $prefix + "`n<truncated:originalBytes=$($bytes.Length)>"
+}
+
+function ConvertTo-MRSmokeProcessDiagnostic {
+    [CmdletBinding()]
+    param(
+        $ProcessResult,
+        [string[]] $RedactValues = @(),
+        [hashtable] $PathReplacements = @{}
+    )
+    if ($null -eq $ProcessResult) { return $null }
+    return [ordered]@{
+        exitCode = $ProcessResult.exitCode
+        seconds = $ProcessResult.seconds
+        stdout = ConvertTo-MRSmokeDiagnosticText -Text ([string]$ProcessResult.stdout) -RedactValues $RedactValues -PathReplacements $PathReplacements
+        stderr = ConvertTo-MRSmokeDiagnosticText -Text ([string]$ProcessResult.stderr) -RedactValues $RedactValues -PathReplacements $PathReplacements
+    }
+}
+
+function Get-MRSmokeAgentResultDiagnostic {
+    [CmdletBinding()]
+    param([string] $OutputFile = '', [AllowEmptyString()][string] $StandardOutput = '')
+    $candidate = if ($OutputFile -and (Test-Path -LiteralPath $OutputFile -PathType Leaf)) {
+        Get-Content -LiteralPath $OutputFile -Raw
+    } else { $StandardOutput }
+    if ([string]::IsNullOrWhiteSpace($candidate)) { return $null }
+    try { $value = $candidate | ConvertFrom-Json -AsHashtable -Depth 20 }
+    catch { return $null }
+    if ($value -isnot [Collections.IDictionary]) { return $null }
+    $result = [ordered]@{}
+    foreach ($key in @('created','executed','verified')) {
+        if ($value.Contains($key) -and $value[$key] -is [bool]) { $result[$key] = [bool]$value[$key] }
+    }
+    if ($result.Count -eq 0) { return $null }
+    return $result
+}
+
+function Get-MRSmokeProjectDiagnostics {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string] $Worktree,
+        [string[]] $RedactValues = @(),
+        [hashtable] $PathReplacements = @{}
+    )
+    if (-not (Test-Path -LiteralPath $Worktree -PathType Container)) { return [ordered]@{files=@();truncated=$false} }
+    $entries = [Collections.Generic.List[object]]::new()
+    $allFiles = @(Get-ChildItem -LiteralPath $Worktree -Recurse -File -Force | Sort-Object FullName)
+    $truncated = $false
+    foreach ($file in $allFiles) {
+        $relative = [IO.Path]::GetRelativePath($Worktree,$file.FullName).Replace('\','/')
+        if ($relative -match '(^|/)\.git(/|$)' -or $relative -match '(^|/)\.specify(/|$)' -or
+            $relative -match '(^|/)obj(/|$)') { continue }
+        $inBin = $relative -match '(^|/)bin(/|$)'
+        $selectedRuntimeMetadata = $relative -match '\.(runtimeconfig|deps)\.json$'
+        if ($inBin -and -not $selectedRuntimeMetadata) { continue }
+        if ($entries.Count -ge 200) { $truncated = $true;break }
+        $entry = [ordered]@{
+            path=$relative;size=[long]$file.Length
+            sha256=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+        if ($relative -match '\.csproj$' -or [IO.Path]::GetFileName($relative) -ceq 'Program.cs' -or $selectedRuntimeMetadata) {
+            try {
+                $raw = [IO.File]::ReadAllText($file.FullName)
+                $entry.content = ConvertTo-MRSmokeDiagnosticText -Text $raw -MaxBytes 32768 -RedactValues $RedactValues -PathReplacements $PathReplacements
+            } catch { $entry.contentUnavailable = $true }
+        }
+        $entries.Add($entry)
+    }
+    return [ordered]@{files=$entries.ToArray();truncated=$truncated}
+}
+
+function Limit-MRSmokeAttemptDiagnostics {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][Collections.IDictionary] $Diagnostics, [int] $MaxBytes = 131072)
+    $serialized = $Diagnostics | ConvertTo-Json -Depth 50 -Compress
+    if ([Text.Encoding]::UTF8.GetByteCount($serialized) -le $MaxBytes) { return $Diagnostics }
+    if ($Diagnostics.project -is [Collections.IDictionary]) {
+        foreach ($file in @($Diagnostics.project.files | Sort-Object size -Descending)) {
+            if ($file -is [Collections.IDictionary] -and $file.Contains('content')) {
+                $file.Remove('content');$file.contentOmittedByAttemptLimit=$true
+                $serialized = $Diagnostics | ConvertTo-Json -Depth 50 -Compress
+                if ([Text.Encoding]::UTF8.GetByteCount($serialized) -le $MaxBytes) { return $Diagnostics }
+            }
+        }
+        if ($Diagnostics.project.files.Count -gt 50) {
+            $Diagnostics.project.files = @($Diagnostics.project.files | Select-Object -First 50)
+            $Diagnostics.project.truncated = $true
+        }
+    }
+    $serialized = $Diagnostics | ConvertTo-Json -Depth 50 -Compress
+    if ([Text.Encoding]::UTF8.GetByteCount($serialized) -gt $MaxBytes) {
+        foreach ($processName in @('agent','build','run','preflight')) {
+            $process = $Diagnostics.processes[$processName]
+            if ($process -is [Collections.IDictionary]) {
+                $process.stdout = ConvertTo-MRSmokeDiagnosticText -Text ([string]$process.stdout) -MaxBytes 4096
+                $process.stderr = ConvertTo-MRSmokeDiagnosticText -Text ([string]$process.stderr) -MaxBytes 4096
+            }
+        }
+        $Diagnostics.attemptLimitApplied = $true
+    }
+    return $Diagnostics
+}
+
+function Read-MRSmokeReport {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string] $Path)
+    $report = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -AsHashtable -Depth 50
+    if ([string]$report.schemaVersion -notin @('1.0','1.1') -or [string]$report.testId -cne 'model-routing-live-smoke') {
+        throw 'Smoke report schema or test ID is unsupported.'
+    }
+    return $report
+}
+
 function Test-MRSmokeRequired {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string[]] $ChangedPaths, [Parameter(Mandatory)][string[]] $TriggerPaths)
@@ -215,4 +351,4 @@ function Write-MRSmokeJsonAtomic {
     }
 }
 
-Export-ModuleMember -Function Read-MRSmokeConfiguration,Merge-MRSmokeSelectionOverride,New-MRSmokeProcessStartInfo,Invoke-MRSmokeProcess,Expand-MRSmokeProfileArguments,Test-MRSmokeRequired,Get-MRSmokeFinalStatus,Write-MRSmokeJsonAtomic
+Export-ModuleMember -Function Read-MRSmokeConfiguration,Merge-MRSmokeSelectionOverride,New-MRSmokeProcessStartInfo,Invoke-MRSmokeProcess,Expand-MRSmokeProfileArguments,ConvertTo-MRSmokeDiagnosticText,ConvertTo-MRSmokeProcessDiagnostic,Get-MRSmokeAgentResultDiagnostic,Get-MRSmokeProjectDiagnostics,Limit-MRSmokeAttemptDiagnostics,Read-MRSmokeReport,Test-MRSmokeRequired,Get-MRSmokeFinalStatus,Write-MRSmokeJsonAtomic
