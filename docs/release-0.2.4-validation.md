@@ -141,3 +141,35 @@ hardening. The live run was not repeated under the single-run boundary, and
 the local failure report remains unchanged.
 
 [Strukturierte Vorbereitung / Structured preparation](release-0.2.4-preparation.json).
+
+## Timeout- und Berichtskorrektur / Timeout and report correction
+
+DE: Der lokale Lauf auf `3345063` verwendete versionierte Defaults und
+maximal drei Retries je Harness. Codex bestand im ersten Versuch, Claude und
+Copilot im dritten. `agy` erzeugte wegen verweigertem `write_file` kein
+Projekt. OpenCode scheiterte viermal bei der externen Ausfuehrung mit Exitcode
+131 und fehlender Runtimeconfig. Der Bericht enthaelt alle 15 Versuche und
+bestaetigt vollstaendigen Cleanup sowie unveraendertes HEAD, Git-Status und
+permanentes Profil. Bei drei OpenCode-Diagnosen war ein manueller Eingriff
+zum Schliessen lokaler .NET-Diagnose-Pipes notwendig. Dieser Lauf ist daher
+kein Nachweis fuer einen unbeaufsichtigten Runner. Anschliessend wurde die
+Inventur auf regulaere Dateien anhand von `UnixStat.ItemType` begrenzt;
+ein Offline-Test mit echter FIFO prueft den Schutz gegen diesen Haenger.
+Prozessausgabe und Prozessende teilen sich jetzt eine Deadline; abgeschlossene
+Versuche werden sofort atomar auf Platte gesichert. Keine Routingpolicy wurde
+geaendert. Die abschliessende FIFO-Korrektur wurde offline, nicht in einem
+weiteren Providerlauf geprueft.
+
+EN: The local run at `3345063` used versioned defaults and at most three
+retries per harness. Codex passed on attempt one; Claude and Copilot passed on
+attempt three. `agy` produced no project because `write_file` was denied.
+OpenCode failed external execution four times with exit code 131 and a missing
+runtimeconfig. The report retains all 15 attempts and confirms cleanup and
+unchanged HEAD, Git status and permanent profile. Three OpenCode diagnostics
+required manual intervention to close local .NET diagnostic pipes, so this
+run does not prove unattended operation. Inventory was subsequently restricted
+to regular files using `UnixStat.ItemType`; an offline test with a real FIFO
+covers this hang. Output draining and process exit now share a deadline;
+completed attempts are immediately checkpointed atomically. Routing policy
+was unchanged. The final FIFO correction was checked offline, not in another
+provider run.

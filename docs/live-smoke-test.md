@@ -112,6 +112,8 @@ Prozessende und das Lesen geerbter Ausgabekanaele teilen sich dasselbe
 Zeitbudget. Server-Cleanup wartet hoechstens zwei Sekunden je Schritt.
 Nach jedem abgeschlossenen Versuch wird der Bericht atomar auf Platte
 geschrieben; ein spaeterer Haenger darf fruehere Ergebnisse nicht verlieren.
+Die Inventur oeffnet ausschliesslich regulaere Dateien: Unix-Pipes, Sockets
+und symbolische Links werden vor dem Hashen ausgeschlossen.
 
 Bei einem fehlgeschlagenen Versuch sichert der Runner vor dem Cleanup
 redigiertes stdout/stderr fuer Preflight, Agent, Build und Run, das geparste

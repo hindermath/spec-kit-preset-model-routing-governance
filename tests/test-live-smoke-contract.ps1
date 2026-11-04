@@ -179,6 +179,24 @@ exit 131
     Remove-Item -LiteralPath $projectRoot -Recurse -Force
     Assert-SmokeContract (($projectDiagnostics | ConvertTo-Json -Depth 20).Contains('App.csproj')) 'diagnostics survive worktree cleanup'
 
+    if (-not $IsWindows) {
+        $fifoRoot = Join-Path $temporary 'fifo-project'
+        [void](New-Item -ItemType Directory -Path $fifoRoot)
+        & mkfifo (Join-Path $fifoRoot 'clr-debug-pipe-fixture')
+        if ($LASTEXITCODE -ne 0) { throw 'FIFO fixture preparation failed.' }
+        $fifoScript = Join-Path $temporary 'fifo-inventory.ps1'
+        @'
+param($ModulePath,$Worktree)
+Import-Module $ModulePath
+$diagnostics = Get-MRSmokeProjectDiagnostics -Worktree $Worktree
+if ($diagnostics.files.Count -ne 0) { exit 1 }
+'@ | Set-Content $fifoScript
+        $fifoResult = Invoke-MRSmokeProcess -ChildScript $childScript -Executable 'pwsh' `
+            -Arguments @('-NoProfile','-File',$fifoScript,(Join-Path $liveRoot 'model-routing-smoke-core.psm1'),$fifoRoot) `
+            -WorkingDirectory $working -TimeoutSeconds 5
+        Assert-SmokeContract ($fifoResult.exitCode -eq 0) 'real Unix FIFO is excluded without blocking'
+    }
+
     $reportPath = Join-Path $temporary 'report/report.json'
     Write-MRSmokeJsonAtomic -Path $reportPath -Value @{schemaVersion='1.1';testId='model-routing-live-smoke';finalStatus='PASS'} -Confirm:$false
     $report = Get-Content $reportPath -Raw | ConvertFrom-Json -AsHashtable
@@ -192,8 +210,10 @@ exit 131
     $partialReport = [ordered]@{harnesses=@()}
     $partialHarnesses.Add([ordered]@{harness='agy';finalStatus='FAILED';attempts=@(@{attempt=1;status='FAILED'})})
     $partialReport.harnesses = @($partialHarnesses)
+    Write-MRSmokeJsonAtomic -Path $reportPath -Value $partialReport -Confirm:$false
     try { throw 'synthetic later harness failure' } catch { $null = $_ }
-    Assert-SmokeContract ($partialReport.harnesses.Count -eq 1 -and $partialReport.harnesses[0].harness -ceq 'agy') 'completed harness evidence survives later failure'
+    $savedPartialReport = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json -AsHashtable
+    Assert-SmokeContract ($savedPartialReport.harnesses.Count -eq 1 -and $savedPartialReport.harnesses[0].harness -ceq 'agy') 'atomic completed harness evidence survives later failure on disk'
 
     $gate = Invoke-MRSmokeProcess -ChildScript $childScript -Executable 'pwsh' `
         -Arguments @('-NoProfile','-File',(Join-Path $liveRoot 'invoke-model-routing-smoke.ps1')) `

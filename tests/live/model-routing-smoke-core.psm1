@@ -259,6 +259,10 @@ function Get-MRSmokeProjectDiagnostics {
     $allFiles = @(Get-ChildItem -LiteralPath $Worktree -Recurse -File -Force -ErrorAction SilentlyContinue | Sort-Object FullName)
     $truncated = $false
     foreach ($file in $allFiles) {
+        # PowerShell's -File also returns Unix FIFOs and sockets. Opening one
+        # for hashing can block forever; only regular, non-link files qualify.
+        if (($file.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { continue }
+        if (-not $IsWindows -and [string]$file.UnixStat.ItemType -cne 'File') { continue }
         $relative = [IO.Path]::GetRelativePath($Worktree,$file.FullName).Replace('\','/')
         if ($relative -match '(^|/)\.git(/|$)' -or $relative -match '(^|/)\.specify(/|$)' -or
             $relative -match '(^|/)\.dotnet(/|$)' -or
