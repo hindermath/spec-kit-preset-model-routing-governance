@@ -34,9 +34,24 @@ jobs:
           if (-not (Get-Module -ListAvailable PSScriptAnalyzer | Where-Object Version -EQ '1.25.0')) {
             Install-Module PSScriptAnalyzer -RequiredVersion 1.25.0 -Scope CurrentUser -Force -Repository PSGallery
           }
-          Import-Module PSScriptAnalyzer -RequiredVersion 1.25.0
+          $settings = (Resolve-Path .github/PSScriptAnalyzerSettings.psd1).Path
           $findings = @(Get-ChildItem scripts,tests -Recurse -File -Include '*.ps1','*.psm1' | ForEach-Object {
-            Invoke-ScriptAnalyzer -Path $_.FullName -Settings .github/PSScriptAnalyzerSettings.psd1
+            # Linux/CoreCLR cannot reuse a dynamic assembly for multiple modules.
+            # Isolate each file; preserve every rule, finding and analysis failure.
+            Write-Host "Analyze: $($_.FullName)"
+            $job = Start-Job -ScriptBlock {
+              param($FilePath, $SettingsPath)
+              $ErrorActionPreference = 'Stop'
+              Import-Module PSScriptAnalyzer -RequiredVersion 1.25.0
+              Invoke-ScriptAnalyzer -Path $FilePath -Settings $SettingsPath
+            } -ArgumentList $_.FullName, $settings
+            try {
+              $null = Wait-Job $job
+              Receive-Job $job -ErrorAction Stop
+              if ($job.State -ne 'Completed') { throw 'Isolated script analysis failed' }
+            } finally {
+              Remove-Job $job -Force
+            }
           })
           $findings | Format-Table ScriptName,Line,RuleName,Message -Wrap
           if ($findings.Count) { throw 'Package must pass strict consumer analysis before publication' }

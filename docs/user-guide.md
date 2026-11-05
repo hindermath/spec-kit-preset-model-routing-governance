@@ -1,10 +1,10 @@
 # Nutzungsleitfaden: model-routing-governance
 
-<!-- current-package: 0.2.4 -->
+<!-- current-package: 0.2.5 -->
 
-Paketkennung: **v0.2.4**. [Vorbereitung und Veröffentlichungsgrenze](release-0.2.4-validation.md). Die Release-Seite und der externe Archivnachweis belegen die Veröffentlichung, nicht dieser Vorbereitungsstand. Frühere Versionsnachweise unten bleiben historisch.
+Paketkennung: **v0.2.5**. [Patch und Veröffentlichungsnachweis](release-0.2.5-validation.md). Die Release-Seite und der externe Archivnachweis belegen die Veröffentlichung, nicht ein Quellcommit. Frühere Versionsnachweise unten bleiben historisch.
 
-<span lang="en">Package identity: v0.2.4. The release page and external archive evidence prove publication, not this preparation snapshot. Earlier version records below remain historical.</span>
+<span lang="en">Package identity: v0.2.5. The release page and external archive evidence prove publication, not a source commit. Earlier version records below remain historical.</span>
 
 [Release-Abschluss und Verbesserungsprofil / Publication closeout and improvement profile](release-0.1.6-validation.md).
 
@@ -39,7 +39,7 @@ Eingabe: Benenne den vorhandenen Harness und ob du nur Status oder einen lokalen
 $speckit-model-routing-status — nur vorhandene Bindung und gemeldete Grenzen erklären; keine Modelle aufrufen, kein Refresh und kein Anbieterwechsel.
 ~~~
 
-3. Status oder konkreter Blocker mit nächster Aktion. Der Kandidat unterstützt zusätzlich Claude, Copilot und OpenCode. Voraussetzungen und Grenzen stehen unter [Automatische Adapter](automatic-discovery.md).
+3. Status oder konkreter Blocker mit nächster Aktion. Das Paket unterstützt zusätzlich Claude, Copilot und OpenCode. Voraussetzungen und Grenzen stehen unter [Automatische Adapter](automatic-discovery.md).
 4. Prüfe Ergebnis und dokumentierte nächste Aktion. Änderungen, Reparatur, Feature-Ausführung und Lieferung brauchen jeweils die passende Autorität. Ein grüner technischer Check ist keine menschliche Abnahme.
 
 Lesende Installationsprüfung im initialisierten Ziel-Repository:
