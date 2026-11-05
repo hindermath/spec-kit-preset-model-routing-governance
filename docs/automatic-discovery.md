@@ -1,4 +1,4 @@
-# Automatische Adapter: Model Routing Governance 0.2.5
+# Automatische Adapter: Model Routing Governance 0.2.6
 
 [English](automatic-discovery.EN.md) · [Nutzungsleitfaden](user-guide.md)
 
