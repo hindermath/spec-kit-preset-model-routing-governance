@@ -38,6 +38,11 @@ try {
         $readonly = @(Expand-MRExecutionArguments $executionProfile $values)
         $readArguments=@($readonly[3]|ConvertFrom-Json)
         if($family -ceq 'Claude'){
+            $schemaIndex=[Array]::IndexOf([object[]]$readArguments,'--json-schema')
+            $schema=$readArguments[$schemaIndex+1]|ConvertFrom-Json -AsHashtable
+            foreach($name in @('read','writeDenied','writeUnavailable','writeAttempted','gatesSatisfied')){
+                if($schema.properties[$name].type -cne 'boolean'){throw "Claude schema does not require boolean ${name}."}
+            }
             if($readonly[1] -cne 'ClaudeStructuredJson' -or 'Read,Glob,Grep' -cnotin $readArguments -or '--restricted' -cnotin $readArguments){throw 'Claude read-only filter/transport missing.'}
         }elseif ($permission -cin $readArguments) { throw "$family escalated read-only permissions." }
         if($family -cin @('Claude','Copilot')){
@@ -57,6 +62,7 @@ try {
         $settings = $settingsObject.permissions.allow
         $path = Resolve-MRExecutionPath $temporary
         if ($role -ceq 'fast-mechanical') {
+            if('--json-schema' -cin $expanded){throw 'agy plain JSON transport received incompatible schema flag.'}
             if ($settings.Count -ne 1 -or $settings[0] -cne "read_file($path)") { throw 'Read-only agy grants too much.' }
             if($settingsObject.toolPermission -cne 'request-review' -or 'write_file(*)' -cnotin $settingsObject.permissions.deny -or 'command(*)' -cnotin $settingsObject.permissions.deny){throw 'agy effective write/code denial missing.'}
         } elseif ($settings.Count -ne 2 -or "write_file($path)" -cnotin $settings) { throw 'agy write scope mismatch.' }

@@ -82,3 +82,20 @@ three retries per harness/stage. Model/provider selection remains unchanged.
 Sources: [agy permissions](https://antigravity.google/docs/permissions),
 [Claude CLI](https://code.claude.com/docs/en/cli-reference),
 [Copilot CLI](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference).
+
+## Nachbesserung / Follow-up
+
+DE: Probe 2.1 erlaubt Codex das Lesen per sandboxiertem Lesebefehl, da dort
+kein eigenes Dateilesewerkzeug existiert. Schreibumgehungen bleiben verboten.
+Claude erhaelt explizite boolesche Schemafelder; Zeichenketten wie `"true"`
+werden weiterhin abgelehnt. agy nutzt fuer reine stdout-JSON-Antworten keinen
+inkompatiblen JSON-Schema-Schalter. Die optionale `-HarnessFilter`-Diagnose des
+Einzelrunners markiert Berichte als `partial`; die gekoppelte Abnahme bleibt
+immer vollstaendig mit allen fuenf Harnesses.
+
+EN: Probe 2.1 permits Codex to read through a sandboxed read command because it
+has no dedicated file-read tool. Write bypasses remain forbidden. Claude uses
+explicit boolean schema fields; strings such as `"true"` still fail. agy plain
+stdout JSON uses no incompatible schema flag. Optional single-runner
+`-HarnessFilter` diagnostics mark reports `partial`; paired acceptance always
+runs all five harnesses.

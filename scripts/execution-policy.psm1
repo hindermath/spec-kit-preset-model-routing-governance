@@ -62,7 +62,6 @@ function Expand-MRExecutionArguments {
             $modeIndex=$arguments.IndexOf('--mode')
             if($modeIndex -ge 0){$arguments[$modeIndex+1]='accept-edits'}else{$arguments.Insert(0,'--mode');$arguments.Insert(1,'accept-edits')}
             $arguments.Insert(0,'--add-dir');$arguments.Insert(1,$path)
-            $arguments.Insert(0,'--json-schema');$arguments.Insert(1,'{"type":"object"}')
         }
         $settings = $sessionSettings | ConvertTo-Json -Depth 5 -Compress
         $index = $arguments.IndexOf('--print')
@@ -76,7 +75,13 @@ function Expand-MRExecutionArguments {
         if($readOnly){
             if($family -ceq 'Claude'){
                 $position=$inner.Count - 1
-                foreach($flag in @('--restricted','--tools','Read,Glob,Grep','--allowedTools','Read,Glob,Grep','--disallowedTools','Write,Edit,Bash,PowerShell,NotebookEdit','--strict-mcp-config','--mcp-config','{"mcpServers":{}}','--output-format','json','--json-schema','{"type":"object"}','--')){$inner.Insert($position,$flag);$position++}
+                $schema=@{type='object';properties=@{
+                    read=@{type='boolean'};writeDenied=@{type='boolean'};writeUnavailable=@{type='boolean'};writeAttempted=@{type='boolean'}
+                    schemaVersion=@{type='string'};phaseId=@{type='string'};attemptId=@{type='string'};outcome=@{type='string'}
+                    expectedTasks=@{type='integer'};completedTasks=@{type='integer'};blockedReason=@{type='string'};gatesSatisfied=@{type='boolean'}
+                    payloadPath=@{type='string'};payloadSha256=@{type='string'}
+                };additionalProperties=$true}|ConvertTo-Json -Depth 10 -Compress
+                foreach($flag in @('--restricted','--tools','Read,Glob,Grep','--allowedTools','Read,Glob,Grep','--disallowedTools','Write,Edit,Bash,PowerShell,NotebookEdit','--strict-mcp-config','--mcp-config','{"mcpServers":{}}','--output-format','json','--json-schema',$schema,'--')){$inner.Insert($position,$flag);$position++}
                 $protocolIndex=$arguments.IndexOf('-OutputProtocol')
                 if($protocolIndex -lt 0){throw 'Claude structured output needs explicit result protocol.'}
                 $arguments[$protocolIndex+1]='ClaudeStructuredJson'
