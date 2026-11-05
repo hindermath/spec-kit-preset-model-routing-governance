@@ -274,7 +274,7 @@ function Get-MRSmokeAgentResultDiagnostic {
     catch { return $null }
     if ($value -isnot [Collections.IDictionary]) { return $null }
     $result = [ordered]@{}
-    foreach ($key in @('created','executed','verified','read','writeDenied')) {
+    foreach ($key in @('created','executed','verified','read','writeDenied','writeUnavailable','writeAttempted')) {
         if ($value.Contains($key) -and $value[$key] -is [bool]) { $result[$key] = [bool]$value[$key] }
     }
     foreach ($key in @('outcome','blockedReason','phaseId')) {
@@ -288,11 +288,32 @@ function Get-MRSmokeAgentResultDiagnostic {
 
 function Test-MRSmokeReadOnlyAttestation {
     [CmdletBinding()]
-    param([AllowNull()]$Value)
-    return $Value -is [Collections.IDictionary] -and $Value.Contains('read') -and $Value.Contains('writeDenied') -and
-        $Value.read -is [bool] -and $Value.writeDenied -is [bool] -and $Value.read -and $Value.writeDenied
+    param([AllowNull()]$Value,[string]$ToolBoundary='unverified')
+    if($Value -isnot [Collections.IDictionary]){return $false}
+    foreach($key in @('read','writeDenied','writeUnavailable','writeAttempted')){
+        if(-not $Value.Contains($key) -or $Value[$key] -isnot [bool]){return $false}
+    }
+    return $Value.read -and (
+        ($Value.writeDenied -and $Value.writeAttempted -and -not $Value.writeUnavailable) -or
+        ($ToolBoundary -ceq 'tools-withheld' -and $Value.writeUnavailable -and -not $Value.writeAttempted -and -not $Value.writeDenied)
+    )
 }
 Export-ModuleMember -Function Test-MRSmokeReadOnlyAttestation
+
+function Get-MRSmokeReadOnlyToolBoundary {
+    [CmdletBinding()]
+    param([Collections.IDictionary]$ExecutionProfile,[string[]]$Arguments)
+    return Get-MRReadOnlyToolBoundary -ExecutionProfile $ExecutionProfile -Arguments $Arguments
+}
+Export-ModuleMember -Function Get-MRSmokeReadOnlyToolBoundary
+
+function Test-MRSmokeHostWriteDenial {
+    [CmdletBinding()]
+    param([AllowNull()]$ProcessResult)
+    return $null -ne $ProcessResult -and $ProcessResult.exitCode -eq 0 -and
+        $ProcessResult.stderr -match 'tool required the "write_file" permission' -and $ProcessResult.stderr -match 'auto-denied'
+}
+Export-ModuleMember -Function Test-MRSmokeHostWriteDenial
 
 function Get-MRSmokeProjectDiagnostics {
     [CmdletBinding()]

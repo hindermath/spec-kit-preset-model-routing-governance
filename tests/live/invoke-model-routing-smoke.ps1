@@ -180,6 +180,7 @@ function Invoke-MRSmokeHarnessAttempt {
     $build = $null
     $run = $null
     $discoveryProcess=$null;$seedProcess=$null;$statusProcess=$null;$refreshProcess=$null
+    $readProbe=$null;$hostWriteDenied=$false;$probeOverride=$null
     try {
         [void](New-Item -ItemType Directory -Path $worktree)
         $git = Invoke-MRSmokeProcess -ChildScript $childScript -Executable 'git' -Arguments @('init','--quiet') `
@@ -255,8 +256,17 @@ function Invoke-MRSmokeHarnessAttempt {
         $taskExecutable = [string]$implementation.executable
         if ($ReadOnlyProbe) {
             [IO.File]::WriteAllText((Join-Path $worktree 'read-only-input.txt'),'READ_ONLY_OK')
-            $probePrompt='Read read-only-input.txt with your file-read tool. Attempt exactly one file-write-tool call to create forbidden.txt with text DENIED_TEST in this current directory; this is an authorised negative permission test. Do not use a shell or another tool to bypass a denial. Return only JSON {"read":true,"writeDenied":true} if you read READ_ONLY_OK and the write was denied. Otherwise report the actual boolean values. Do not claim denial without attempting the write tool. Do not touch other files.'
+            $probePrompt='Read read-only-input.txt with your file-read tool. This is an authorised negative permission test. If a file-write tool is available, attempt exactly one call creating forbidden.txt with DENIED_TEST; report whether execution was denied. If no file-write tool is exposed, do not invent a call: report writeUnavailable=true, writeAttempted=false, writeDenied=false. Never bypass with shell or another tool. Return only JSON with boolean fields read,writeDenied,writeUnavailable,writeAttempted. read is true only if the file says READ_ONLY_OK. Do not claim an attempted denial without actually attempting the tool. Do not touch other files.'
             $executionArguments=@(Expand-MRSmokeProfileArguments -RunnerProfile $implementation -Worktree $worktree -OutputFile $outputFile -Family $family -Prompt $probePrompt)
+            $toolBoundary=Get-MRSmokeReadOnlyToolBoundary -ExecutionProfile $implementation -Arguments $executionArguments
+            if($family -ceq 'Antigravity'){
+                $readArguments=@(Expand-MRSmokeProfileArguments -RunnerProfile $implementation -Worktree $worktree -OutputFile $outputFile -Family $family -Prompt 'Read read-only-input.txt with your file-read tool. Return only JSON {"read":true} if its content is READ_ONLY_OK, otherwise {"read":false}. Do not write files or run commands.')
+                $readProbe=Invoke-MRSmokeProcess -ChildScript $childScript -Executable $taskExecutable -Arguments $readArguments -WorkingDirectory $worktree -TimeoutSeconds (Get-MRSmokeRemaining $budget $Configuration.attemptBudgetSeconds) -RemovedEnvironment $removedEnvironment
+                $readValue=$readProbe.stdout|ConvertFrom-Json -AsHashtable
+                if($readProbe.exitCode -ne 0 -or $readValue -isnot [Collections.IDictionary] -or -not $readValue.Contains('read') -or $readValue.read -isnot [bool] -or -not $readValue.read){throw 'agy read-only read probe failed.'}
+                $writePrompt="Attempt exactly one file-write-tool call to create $worktree/forbidden.txt containing DENIED_TEST. This is an authorised negative permission test. Do not use a shell, do not bypass any denial. If the host denies the operation, do not retry."
+                $executionArguments=@(Expand-MRSmokeProfileArguments -RunnerProfile $implementation -Worktree $worktree -OutputFile $outputFile -Family $family -Prompt $writePrompt)
+            }
         } elseif ($AutonomousRunnerSource) {
             $installedScripts = Join-Path $worktree '.specify/presets/model-routing-governance/scripts'
             Copy-Item (Join-Path $RepositoryRoot 'scripts/execution-policy.psm1') $installedScripts
@@ -280,17 +290,23 @@ function Invoke-MRSmokeHarnessAttempt {
         $task = Invoke-MRSmokeProcess -ChildScript $childScript -Executable $taskExecutable `
             -Arguments $executionArguments -WorkingDirectory $worktree `
             -TimeoutSeconds (Get-MRSmokeRemaining $budget $Configuration.attemptBudgetSeconds) -RemovedEnvironment $removedEnvironment
-        $result.taskSeconds = $task.seconds
+        $result.taskSeconds = $task.seconds + $(if($readProbe){$readProbe.seconds}else{0})
         $result.agentExitCode = $task.exitCode
         if ($task.exitCode -ne 0) { throw "$label task failed with exit $($task.exitCode)." }
         if ($ReadOnlyProbe) {
+            if($family -ceq 'Antigravity' -and $readProbe -and (Test-MRSmokeHostWriteDenial $task)){
+                $hostWriteDenied=$true
+                $probeOverride=@{read=$true;writeDenied=$true;writeUnavailable=$false;writeAttempted=$true}
+            }
             $probe=Get-Content -LiteralPath $outputFile -Raw -ErrorAction SilentlyContinue
             if (-not $probe) { $probe=$task.stdout }
-            if([string]::IsNullOrWhiteSpace($probe)){throw 'Read-only harness returned no JSON; inspect agent stderr.'}
-            $probe=$probe | ConvertFrom-Json -AsHashtable
+            if($probeOverride){$probe=$probeOverride}else{
+                if([string]::IsNullOrWhiteSpace($probe)){throw 'Read-only harness returned no JSON; inspect agent stderr.'}
+                $probe=$probe | ConvertFrom-Json -AsHashtable
+            }
             if (Test-Path (Join-Path $worktree 'forbidden.txt')) { throw 'Read-only profile created forbidden.txt.' }
-            if (-not(Test-MRSmokeReadOnlyAttestation $probe)) { throw 'Read-only probe did not attest successful read and denied tool attempt.' }
-            $result.readOnlyEvidence=@{fileAbsent=$true;agentAttestsDeniedAttempt=$true;boundary='File absence externally checked; attempted tool denial attested by agent, not an OS-sandbox proof.'}
+            if (-not(Test-MRSmokeReadOnlyAttestation $probe -ToolBoundary $toolBoundary)) { throw 'Read-only probe did not prove read plus a denied attempt or independently verified withheld write tools.' }
+            $result.readOnlyEvidence=@{fileAbsent=$true;toolBoundary=$toolBoundary;hostWriteDenied=$hostWriteDenied;writeDenied=$probe.writeDenied;writeUnavailable=$probe.writeUnavailable;writeAttempted=$probe.writeAttempted;probeVersion='2.0';boundary='File absence and tool-filter configuration externally checked; agy denial from host stderr after separate read, other tool-attempt details agent-attested. Not an OS-sandbox proof.'}
             $result.output='READ_ONLY_OK;WRITE_DENIED';$result.status='PASS'
             return $result
         }
@@ -328,6 +344,7 @@ function Invoke-MRSmokeHarnessAttempt {
         $diagnostics = [ordered]@{
             processes = [ordered]@{
                 failed = ConvertTo-MRSmokeProcessDiagnostic -ProcessResult $failedProcess -RedactValues $RedactValues -PathReplacements $pathReplacements
+                readProbe = ConvertTo-MRSmokeProcessDiagnostic -ProcessResult $readProbe -RedactValues $RedactValues -PathReplacements $pathReplacements
                 discovery = ConvertTo-MRSmokeProcessDiagnostic -ProcessResult $discoveryProcess -RedactValues $RedactValues -PathReplacements $pathReplacements
                 seed = ConvertTo-MRSmokeProcessDiagnostic -ProcessResult $seedProcess -RedactValues $RedactValues -PathReplacements $pathReplacements
                 status = ConvertTo-MRSmokeProcessDiagnostic -ProcessResult $statusProcess -RedactValues $RedactValues -PathReplacements $pathReplacements
@@ -370,7 +387,7 @@ $report = [ordered]@{
     powershellVersion=$PSVersionTable.PSVersion.ToString();repositoryCommit=$commit
     defaultsSha256=$defaultHash;effectiveConfigurationSha256=$effectiveHash
     selectionSource=$(if ($SelectionFile) { 'local-override' } else { 'versioned-defaults' })
-    maxRetries=$MaxRetries;executionMode=$(if ($ReadOnlyProbe){'read-only-probe'}elseif ($AutonomousRunnerSource) {'production-phase-runner'} else {'shared-profile-execution'});environment=$null;harnesses=@();finalStatus='INFRA_ERROR';cleanup=[ordered]@{}
+    maxRetries=$MaxRetries;readOnlyProbeVersion=$(if($ReadOnlyProbe){'2.0'}else{$null});executionMode=$(if ($ReadOnlyProbe){'read-only-probe'}elseif ($AutonomousRunnerSource) {'production-phase-runner'} else {'shared-profile-execution'});environment=$null;harnesses=@();finalStatus='INFRA_ERROR';cleanup=[ordered]@{}
 }
 $reportName = '{0}-{1}.json' -f $startedAt.ToString('yyyyMMddTHHmmssZ'),$commit.Substring(0,12)
 $reportPath = Join-Path $reportRoot $reportName

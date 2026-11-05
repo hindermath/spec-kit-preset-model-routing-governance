@@ -14,7 +14,7 @@ param(
     [Parameter(Mandatory)][string] $OutputFile,
     [Parameter(Mandatory)][string] $Executable,
     [string] $HarnessArgumentsJson = '',
-    [ValidateSet('Plain','CopilotJsonl')][string] $OutputProtocol = 'Plain',
+    [ValidateSet('Plain','CopilotJsonl','ClaudeStructuredJson')][string] $OutputProtocol = 'Plain',
     [Parameter(ValueFromRemainingArguments)][string[]] $HarnessArguments
 )
 
@@ -43,6 +43,13 @@ $text = if ($OutputProtocol -eq 'CopilotJsonl') {
     }
     if ($assistantMessages.Count -lt 1) { throw 'Copilot JSONL did not contain a final assistant.message.' }
     $assistantMessages[$assistantMessages.Count - 1]
+} elseif($OutputProtocol -ceq 'ClaudeStructuredJson') {
+    $envelope=($output -join "`n")|ConvertFrom-Json -AsHashtable -Depth 100
+    if($envelope -isnot [Collections.IDictionary] -or -not $envelope.Contains('structured_output') -or
+        $envelope.structured_output -isnot [Collections.IDictionary] -or ($envelope.Contains('is_error') -and $envelope.is_error)){
+        throw 'Claude did not return a successful structured_output object.'
+    }
+    $envelope.structured_output|ConvertTo-Json -Depth 100 -Compress
 } else { $output -join "`n" }
 if ([string]::IsNullOrWhiteSpace($text)) {
     throw 'Harness returned no structured standard output.'

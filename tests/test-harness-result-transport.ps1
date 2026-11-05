@@ -7,9 +7,13 @@ $temporary = Join-Path ([IO.Path]::GetTempPath()) ('model-routing-result-' + [gu
 try {
     $fixture = Join-Path $temporary 'fixture.ps1'
     @'
-param([ValidateSet('valid','invalid','failed','copilot')][string]$Mode)
+param([ValidateSet('valid','invalid','failed','copilot','claude','claude-failed')][string]$Mode)
 if($Mode -eq 'failed'){exit 23}
 if($Mode -eq 'invalid'){Write-Output 'not-json';exit 0}
+if($Mode -in @('claude','claude-failed')){
+    @{type='result';is_error=($Mode -eq 'claude-failed');result='Ignored prose';structured_output=@{read=$true;writeUnavailable=$true;writeDenied=$false;writeAttempted=$false}}|ConvertTo-Json -Depth 10 -Compress
+    exit 0
+}
 if($Mode -eq 'copilot'){
     [ordered]@{type='session.info';data=@{message='ignored'}}|ConvertTo-Json -Compress
     [ordered]@{type='assistant.message';data=@{content='intermediate progress'}}|ConvertTo-Json -Compress
@@ -24,6 +28,15 @@ if($Mode -eq 'copilot'){
     $output = @(& $adapter -OutputFile $result -Executable pwsh -HarnessArgumentsJson $plainArguments)
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $result) -or ($output -join "`n") -cne (Get-Content $result -Raw).Trim()) { throw 'Valid structured stdout was not persisted and preserved.' }
     Remove-Item $result
+    $claudeArguments=@('-NoProfile','-File',$fixture,'-Mode','claude')|ConvertTo-Json -Compress
+    $claudeOutput=@(& $adapter -OutputFile $result -Executable pwsh -OutputProtocol ClaudeStructuredJson -HarnessArgumentsJson $claudeArguments)
+    $structured=($claudeOutput -join "`n")|ConvertFrom-Json
+    if(-not $structured.read -or -not $structured.writeUnavailable -or -not(Test-Path $result)){throw 'Claude structured output was not unwrapped.'}
+    Remove-Item $result
+    $badArguments=@('-NoProfile','-File',$fixture,'-Mode','claude-failed')|ConvertTo-Json -Compress
+    $rejected=$false
+    try{& $adapter -OutputFile $result -Executable pwsh -OutputProtocol ClaudeStructuredJson -HarnessArgumentsJson $badArguments|Out-Null}catch{$rejected=$true}
+    if(-not $rejected -or(Test-Path $result)){throw 'Claude error envelope accepted.'}
     $copilotArguments = @('-NoProfile','-File',$fixture,'-Mode','copilot') | ConvertTo-Json -Compress
     $copilotOutput = @(& $adapter -OutputFile $result -Executable pwsh -OutputProtocol CopilotJsonl -HarnessArgumentsJson $copilotArguments)
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $result) -or ($copilotOutput -join "`n") -cne (Get-Content $result -Raw).Trim()) { throw 'Copilot JSONL final assistant message was not persisted.' }

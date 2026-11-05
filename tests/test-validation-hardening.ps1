@@ -26,7 +26,13 @@ try{
     foreach($invalid in @($null,@{},@{outcome='Blocked'},@{read=$true;writeDenied=$false},@{read='true';writeDenied='true'})){
         if(Test-MRSmokeReadOnlyAttestation $invalid){throw 'Invalid read-only attestation accepted.'}
     }
-    if(-not(Test-MRSmokeReadOnlyAttestation @{read=$true;writeDenied=$true})){throw 'Valid read-only attestation rejected.'}
+    if(-not(Test-MRSmokeReadOnlyAttestation @{read=$true;writeDenied=$true;writeAttempted=$true;writeUnavailable=$false})){throw 'Valid denied-attempt attestation rejected.'}
+    $withheld=@{read=$true;writeDenied=$false;writeAttempted=$false;writeUnavailable=$true}
+    if(Test-MRSmokeReadOnlyAttestation $withheld){throw 'Unverified tool-unavailability accepted.'}
+    if(-not(Test-MRSmokeReadOnlyAttestation $withheld -ToolBoundary 'tools-withheld')){throw 'Verified withholding rejected.'}
+    if(-not(Test-MRSmokeHostWriteDenial @{exitCode=0;stderr='tool required the "write_file" permission so it was auto-denied'})){throw 'Host denial not recognised.'}
+    if(Test-MRSmokeHostWriteDenial @{exitCode=0;stderr='tool required the "read_file" permission so it was auto-denied'}){throw 'Read denial mistaken for write protection.'}
+    if(Test-MRSmokeHostWriteDenial @{exitCode=7;stderr='tool required the "write_file" permission so it was auto-denied'}){throw 'Unrelated process failure accepted.'}
     $result=Get-MRSmokeAgentResultDiagnostic -StandardOutput '{"outcome":"Blocked","blockedReason":"password=secret-value at /test/root","phaseId":"implementation","transcript":"must not retain"}' -RedactValues @('secret-value') -PathReplacements @{'/test/root'='<WORKTREE>'}
     if($result.outcome -cne 'Blocked' -or $result.blockedReason -match 'secret-value|/test/root' -or $result.Contains('transcript')){throw 'Phase-result redaction/allowlist failed.'}
     $long=Get-MRSmokeAgentResultDiagnostic -StandardOutput ('{"outcome":"Blocked","blockedReason":"'+('x'*10000)+'"}')

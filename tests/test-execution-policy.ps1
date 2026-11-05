@@ -23,27 +23,42 @@ try {
             Copilot { @('--prompt','{prompt}') }
             OpenCode { @('run','--agent','build','{prompt}') }
         }
-        $executionProfile = @{agentFamily=$family;routingRole='long-running-implementation';arguments=@('-HarnessArgumentsJson',(ConvertTo-Json -InputObject $inner -Compress))}
+        $executionProfile = @{agentFamily=$family;routingRole='long-running-implementation';arguments=@('-OutputProtocol','Plain','-HarnessArgumentsJson',(ConvertTo-Json -InputObject $inner -Compress))}
         $before = $executionProfile | ConvertTo-Json -Depth 10 -Compress
         $expanded = @(Expand-MRExecutionArguments $executionProfile $values)
-        $decoded = @($expanded[1] | ConvertFrom-Json)
+        $decoded = @($expanded[3] | ConvertFrom-Json)
         if ($values.prompt -cnotin $decoded) { throw "$family lost multiline quoted prompt." }
         $permission = switch ($family) { Claude {'--allowedTools'} Copilot {'--allow-tool=write'} OpenCode {'--auto'} }
         if ($permission -cnotin $decoded) { throw "$family missing implementation permissions." }
         if (($executionProfile | ConvertTo-Json -Depth 10 -Compress) -cne $before) { throw 'Persistent profile was mutated.' }
         $executionProfile.routingRole = 'fast-mechanical'
+        if($family -ceq 'Claude'){$inner[1]='plan'}
+        if($family -ceq 'Copilot'){$inner=@('--available-tools','view','--deny-tool','write,shell','--disable-builtin-mcps','--prompt','{prompt}')}
+        $executionProfile.arguments[3]=ConvertTo-Json -InputObject $inner -Compress
         $readonly = @(Expand-MRExecutionArguments $executionProfile $values)
-        if ($permission -cin @($readonly[1] | ConvertFrom-Json)) { throw "$family escalated read-only permissions." }
+        $readArguments=@($readonly[3]|ConvertFrom-Json)
+        if($family -ceq 'Claude'){
+            if($readonly[1] -cne 'ClaudeStructuredJson' -or 'Read,Glob,Grep' -cnotin $readArguments -or '--restricted' -cnotin $readArguments){throw 'Claude read-only filter/transport missing.'}
+        }elseif ($permission -cin $readArguments) { throw "$family escalated read-only permissions." }
+        if($family -cin @('Claude','Copilot')){
+            if((Get-MRReadOnlyToolBoundary $executionProfile $readonly) -cne 'tools-withheld'){throw "$family tool boundary unverified."}
+            $tampered=$readonly.Clone();$changed=@($tampered[3]|ConvertFrom-Json)+@('--tools','Write','--available-tools','view,create')
+            $tampered[3]=ConvertTo-Json -InputObject $changed -Compress
+            if((Get-MRReadOnlyToolBoundary $executionProfile $tampered) -cne 'unverified'){throw 'Conflicting tool filters accepted.'}
+        }
         $preflight = @(Expand-MRExecutionArguments $executionProfile $values -Preflight)
-        if ($permission -cin @($preflight[1] | ConvertFrom-Json)) { throw "$family escalated preflight." }
+        if ($permission -cin @($preflight[3] | ConvertFrom-Json)) { throw "$family escalated preflight." }
     }
     foreach ($role in @('fast-mechanical','long-running-implementation')) {
         $executionProfile = @{agentFamily='Antigravity';routingRole=$role;arguments=@('--print','{prompt}')}
         $expanded = @(Expand-MRExecutionArguments $executionProfile $values)
-        $settings = ($expanded[1] | ConvertFrom-Json).permissions.allow
+        $settingsIndex=[Array]::IndexOf([object[]]$expanded,'--settings')
+        $settingsObject=$expanded[$settingsIndex+1]|ConvertFrom-Json
+        $settings = $settingsObject.permissions.allow
         $path = Resolve-MRExecutionPath $temporary
         if ($role -ceq 'fast-mechanical') {
             if ($settings.Count -ne 1 -or $settings[0] -cne "read_file($path)") { throw 'Read-only agy grants too much.' }
+            if($settingsObject.toolPermission -cne 'request-review' -or 'write_file(*)' -cnotin $settingsObject.permissions.deny -or 'command(*)' -cnotin $settingsObject.permissions.deny){throw 'agy effective write/code denial missing.'}
         } elseif ($settings.Count -ne 2 -or "write_file($path)" -cnotin $settings) { throw 'agy write scope mismatch.' }
         $preflight = @(Expand-MRExecutionArguments $executionProfile $values -Preflight)
         if ('--settings' -cin $preflight) { throw 'agy preflight escalated.' }

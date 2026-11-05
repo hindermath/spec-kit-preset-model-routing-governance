@@ -53,15 +53,37 @@ function Expand-MRExecutionArguments {
     if ($family -ceq 'Antigravity') {
         $path = Resolve-MRExecutionPath ([string]$Values.worktree)
         $allow = @(if ($readOnly) { "read_file($path)" } else { 'command(*)';"write_file($path)" })
-        $settings = @{permissions=@{allow=$allow}} | ConvertTo-Json -Depth 5 -Compress
+        $sessionSettings=@{permissions=@{allow=$allow}}
+        if($readOnly){
+            # plan forces strict tool permission in this CLI, which also denies
+            # scoped reads. Explicit deny wins over accept-edits for every write.
+            $sessionSettings.toolPermission='request-review'
+            $sessionSettings.permissions.deny=@('write_file(*)','command(*)')
+            $modeIndex=$arguments.IndexOf('--mode')
+            if($modeIndex -ge 0){$arguments[$modeIndex+1]='accept-edits'}else{$arguments.Insert(0,'--mode');$arguments.Insert(1,'accept-edits')}
+            $arguments.Insert(0,'--add-dir');$arguments.Insert(1,$path)
+            $arguments.Insert(0,'--json-schema');$arguments.Insert(1,'{"type":"object"}')
+        }
+        $settings = $sessionSettings | ConvertTo-Json -Depth 5 -Compress
         $index = $arguments.IndexOf('--print')
         if ($index -lt 0) { throw 'Antigravity print argument missing.' }
         $arguments.Insert($index,'--settings');$arguments.Insert($index + 1,$settings)
-    } elseif ($family -cin @('Claude','Copilot','OpenCode') -and -not $readOnly) {
+    } elseif ($family -cin @('Claude','Copilot','OpenCode')) {
         $index = $arguments.IndexOf('-HarnessArgumentsJson')
         if ($index -lt 0) { throw 'Structured harness argument transport missing.' }
         $inner = [Collections.Generic.List[string]]::new()
         foreach ($value in @($arguments[$index + 1] | ConvertFrom-Json)) { $inner.Add([string]$value) }
+        if($readOnly){
+            if($family -ceq 'Claude'){
+                $position=$inner.Count - 1
+                foreach($flag in @('--restricted','--tools','Read,Glob,Grep','--allowedTools','Read,Glob,Grep','--disallowedTools','Write,Edit,Bash,PowerShell,NotebookEdit','--strict-mcp-config','--mcp-config','{"mcpServers":{}}','--output-format','json','--json-schema','{"type":"object"}','--')){$inner.Insert($position,$flag);$position++}
+                $protocolIndex=$arguments.IndexOf('-OutputProtocol')
+                if($protocolIndex -lt 0){throw 'Claude structured output needs explicit result protocol.'}
+                $arguments[$protocolIndex+1]='ClaudeStructuredJson'
+            }
+            $arguments[$index+1]=ConvertTo-Json -InputObject @($inner) -Compress
+            return $arguments.ToArray()
+        }
         switch ($family) {
             Claude {
                 $position = $inner.Count - 1
@@ -83,4 +105,20 @@ function Expand-MRExecutionArguments {
     return $arguments.ToArray()
 }
 
-Export-ModuleMember -Function Resolve-MRExecutionPath,Expand-MRExecutionArguments
+function Get-MRReadOnlyToolBoundary {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][Collections.IDictionary]$ExecutionProfile,[Parameter(Mandatory)][string[]]$Arguments)
+    if([string]$ExecutionProfile.routingRole -cne 'fast-mechanical'){return 'unverified'}
+    $index=[Array]::IndexOf($Arguments,'-HarnessArgumentsJson')
+    if($index -lt 0){return 'unverified'}
+    $inner=@($Arguments[$index+1]|ConvertFrom-Json)
+    if($ExecutionProfile.agentFamily -ceq 'Claude'){
+        $tools=[Array]::IndexOf($inner,'--tools');$mcp=[Array]::IndexOf($inner,'--mcp-config')
+        if($tools -ge 0 -and @($inner|Where-Object{$_ -ceq '--tools'}).Count -eq 1 -and $inner[$tools+1] -ceq 'Read,Glob,Grep' -and '--restricted' -cin $inner -and '--strict-mcp-config' -cin $inner -and $mcp -ge 0 -and @($inner|Where-Object{$_ -ceq '--mcp-config'}).Count -eq 1 -and $inner[$mcp+1] -ceq '{"mcpServers":{}}'){return 'tools-withheld'}
+    }elseif($ExecutionProfile.agentFamily -ceq 'Copilot'){
+        $tools=[Array]::IndexOf($inner,'--available-tools');$deny=[Array]::IndexOf($inner,'--deny-tool')
+        if($tools -ge 0 -and @($inner|Where-Object{$_ -ceq '--available-tools'}).Count -eq 1 -and $inner[$tools+1] -ceq 'view' -and $deny -ge 0 -and @($inner|Where-Object{$_ -ceq '--deny-tool'}).Count -eq 1 -and $inner[$deny+1] -ceq 'write,shell' -and '--disable-builtin-mcps' -cin $inner){return 'tools-withheld'}
+    }
+    return 'unverified'
+}
+Export-ModuleMember -Function Resolve-MRExecutionPath,Expand-MRExecutionArguments,Get-MRReadOnlyToolBoundary

@@ -6,6 +6,8 @@
 
 [Diagnose, Feature-Fixture, Cleanup und lesende Rollen / Validation hardening](docs/validation-hardening.md)
 
+[Lesende Fast-Profile / Read-only fast-profile compatibility](docs/fast-read-only-compatibility.md)
+
 <!-- current-package: 0.2.4 -->
 
 Paketkennung: **v0.2.4**. [Vorbereitung und Veröffentlichungsgrenze](docs/release-0.2.4-validation.md). Die Release-Seite und der externe Archivnachweis belegen die Veröffentlichung, nicht dieser Vorbereitungsstand. Frühere Versionsnachweise unten bleiben historisch.
