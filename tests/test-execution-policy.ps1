@@ -72,5 +72,10 @@ try {
     $codex = @{agentFamily='Codex';routingRole='long-running-implementation';arguments=@('exec','--cd','{worktree}','{prompt}')}
     $expanded = @(Expand-MRExecutionArguments $codex $values)
     if ($expanded.Count -ne 4 -or $expanded[-1] -cne $values.prompt) { throw 'Codex argument semantics changed.' }
+    $codexFast=@{agentFamily='Codex';routingRole='fast-mechanical';arguments=@('exec','--sandbox','read-only','--cd','{worktree}','{prompt}')}
+    $codexReadOnly=@(Expand-MRExecutionArguments $codexFast $values)
+    if((Get-MRReadOnlyToolBoundary $codexFast $codexReadOnly) -cne 'tools-withheld'){throw 'Codex read-only sandbox boundary unverified.'}
+    $codexFast.arguments=@('exec','--sandbox','workspace-write','--cd','{worktree}','{prompt}')
+    if((Get-MRReadOnlyToolBoundary $codexFast @(Expand-MRExecutionArguments $codexFast $values)) -cne 'unverified'){throw 'Writable Codex sandbox accepted as read-only.'}
     'PASS: production execution policy, role boundaries, preflight and JSON transport; offline.'
 } finally { Remove-Item -LiteralPath $temporary -Recurse -Force }

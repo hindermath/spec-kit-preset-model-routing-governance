@@ -114,6 +114,13 @@ function Get-MRReadOnlyToolBoundary {
     [CmdletBinding()]
     param([Parameter(Mandatory)][Collections.IDictionary]$ExecutionProfile,[Parameter(Mandatory)][string[]]$Arguments)
     if([string]$ExecutionProfile.routingRole -cne 'fast-mechanical'){return 'unverified'}
+    if($ExecutionProfile.agentFamily -ceq 'Codex'){
+        $sandbox=[Array]::IndexOf($Arguments,'--sandbox')
+        if($sandbox -ge 0 -and @($Arguments|Where-Object{$_ -ceq '--sandbox'}).Count -eq 1 -and $Arguments[$sandbox+1] -ceq 'read-only'){
+            return 'tools-withheld'
+        }
+        return 'unverified'
+    }
     $index=[Array]::IndexOf($Arguments,'-HarnessArgumentsJson')
     if($index -lt 0){return 'unverified'}
     $inner=@($Arguments[$index+1]|ConvertFrom-Json)

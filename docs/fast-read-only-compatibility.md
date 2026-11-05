@@ -99,3 +99,14 @@ explicit boolean schema fields; strings such as `"true"` still fail. agy plain
 stdout JSON uses no incompatible schema flag. Optional single-runner
 `-HarnessFilter` diagnostics mark reports `partial`; paired acceptance always
 runs all five harnesses.
+
+DE: Aktuelle agy-Versionen melden die konkrete Host-Verweigerung auch auf
+Standardausgabe; die Probe erkennt nur die eng begrenzte `write_file`-Meldung
+mit passender Deny-Regel. Codex wird nur dann als werkzeugseitig schreibgesperrt
+gewertet, wenn die effektiv ausgeführten Argumente genau einen
+`--sandbox read-only`-Schalter enthalten.
+
+EN: Current agy versions can emit the concrete host denial on standard output;
+the probe accepts only the narrowly matched `write_file` denial with its deny
+rule. Codex counts as having write tools withheld only when its effective
+arguments contain exactly one `--sandbox read-only` switch.

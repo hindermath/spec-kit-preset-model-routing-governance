@@ -31,6 +31,8 @@ try{
     if(Test-MRSmokeReadOnlyAttestation $withheld){throw 'Unverified tool-unavailability accepted.'}
     if(-not(Test-MRSmokeReadOnlyAttestation $withheld -ToolBoundary 'tools-withheld')){throw 'Verified withholding rejected.'}
     if(-not(Test-MRSmokeHostWriteDenial @{exitCode=0;stderr='tool required the "write_file" permission so it was auto-denied'})){throw 'Host denial not recognised.'}
+    if(-not(Test-MRSmokeHostWriteDenial @{exitCode=0;stdout='Permission denied for write_file(/tmp/worktree/forbidden.txt). Matches user-configured deny rule.';stderr=''})){throw 'Current agy stdout host denial not recognised.'}
+    if(Test-MRSmokeHostWriteDenial @{exitCode=0;stdout='Permission denied for read_file(/tmp/worktree/input.txt). Matches user-configured deny rule.';stderr=''}){throw 'Read denial mistaken for current agy write protection.'}
     if(Test-MRSmokeHostWriteDenial @{exitCode=0;stderr='tool required the "read_file" permission so it was auto-denied'}){throw 'Read denial mistaken for write protection.'}
     if(Test-MRSmokeHostWriteDenial @{exitCode=7;stderr='tool required the "write_file" permission so it was auto-denied'}){throw 'Unrelated process failure accepted.'}
     $result=Get-MRSmokeAgentResultDiagnostic -StandardOutput '{"outcome":"Blocked","blockedReason":"password=secret-value at /test/root","phaseId":"implementation","transcript":"must not retain"}' -RedactValues @('secret-value') -PathReplacements @{'/test/root'='<WORKTREE>'}

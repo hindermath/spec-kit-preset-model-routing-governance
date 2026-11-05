@@ -310,8 +310,12 @@ Export-ModuleMember -Function Get-MRSmokeReadOnlyToolBoundary
 function Test-MRSmokeHostWriteDenial {
     [CmdletBinding()]
     param([AllowNull()]$ProcessResult)
-    return $null -ne $ProcessResult -and $ProcessResult.exitCode -eq 0 -and
-        $ProcessResult.stderr -match 'tool required the "write_file" permission' -and $ProcessResult.stderr -match 'auto-denied'
+    if($null -eq $ProcessResult -or $ProcessResult.exitCode -ne 0){return $false}
+    $standardOutput=if($ProcessResult.Contains('stdout')){[string]$ProcessResult.stdout}else{''}
+    $standardError=if($ProcessResult.Contains('stderr')){[string]$ProcessResult.stderr}else{''}
+    $combined=$standardOutput+"`n"+$standardError
+    return ($combined -match 'tool required the "write_file" permission' -and $combined -match 'auto-denied') -or
+        ($combined -match 'Permission denied for write_file\([^\r\n]+\)\. Matches user-configured deny rule\.')
 }
 Export-ModuleMember -Function Test-MRSmokeHostWriteDenial
 
