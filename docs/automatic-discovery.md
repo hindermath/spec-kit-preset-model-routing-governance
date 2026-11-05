@@ -1,11 +1,11 @@
-# Automatische Adapter: Entwicklungskandidat 0.2.0
+# Automatische Adapter: Model Routing Governance 0.2.4
 
 [English](automatic-discovery.EN.md) · [Nutzungsleitfaden](user-guide.md)
 
-Dieser Kandidat ergänzt Claude, Copilot und OpenCode. Die bisherigen
-Codex-/Antigravity-Regeln, Profile und Aufrufe bleiben erhalten. Es gibt keinen
-Release-, Installations- oder Rollout-Auftrag. Die Beispiele gelten erst für
-die geprüfte Kandidatenquelle; sie ändern keine installierten Presets.
+Das Paket unterstützt Claude, Copilot und OpenCode. Die bisherigen
+Codex-/Antigravity-Regeln, Profile und Aufrufe bleiben erhalten. Die Beispiele
+ändern keine installierten Presets. Installation, lokale Bindungsänderungen
+und Rollout benötigen jeweils einen eigenen Auftrag.
 
 ## Voraussetzungen und Status
 

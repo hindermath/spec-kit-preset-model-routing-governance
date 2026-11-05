@@ -1,8 +1,8 @@
 # User guide: model-routing-governance
 
-<!-- current-package: 0.2.3 -->
+<!-- current-package: 0.2.4 -->
 
-Package identity: **v0.2.3**. [Preparation and publication boundary](release-0.2.3-validation.md). The release page, not this preparation snapshot, proves publication and the external archive hash. Earlier version records below remain historical.
+Package identity: **v0.2.4**. [Patch and publication evidence](release-0.2.4-validation.md). The release page, not a source commit, proves publication and the external archive hash. Earlier version records below remain historical.
 
 [Release-Abschluss und Verbesserungsprofil / Publication closeout and improvement profile](release-0.1.6-validation.md).
 
@@ -37,7 +37,7 @@ Input: Name the existing harness and whether you want status only or a local ref
 $speckit-model-routing-status — explain the existing binding and reported limits only; no model invocation, refresh or provider switch.
 ~~~
 
-3. Status or a specific blocker with a next action. The candidate also supports Claude, Copilot and OpenCode. See [automatic adapters](automatic-discovery.EN.md) for prerequisites and limits.
+3. Status or a specific blocker with a next action. The package also supports Claude, Copilot and OpenCode. See [automatic adapters](automatic-discovery.EN.md) for prerequisites and limits.
 4. Check the result and recorded next action. Changes, repair, feature execution and delivery each need their applicable authority. A passing technical check is not human acceptance.
 
 Read-only installation check in the initialized target repository:

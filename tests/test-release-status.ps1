@@ -28,7 +28,8 @@ function Test-ReleasePreparation {
         $testCompatibilityValid = $Id -cne 'model-routing-governance' -or
             ($PackageVersion -ceq '0.2.1' -and $Value.changeKind -ceq 'PowerShellTestCompatibility' -and -not [string]::IsNullOrWhiteSpace($Value.authorizationReference)) -or
             ($PackageVersion -ceq '0.2.2' -and $Value.changeKind -ceq 'HarnessResultTransport' -and -not [string]::IsNullOrWhiteSpace($Value.authorizationReference)) -or
-            ($PackageVersion -ceq '0.2.3' -and $Value.changeKind -ceq 'CanonicalAdapterPath' -and -not [string]::IsNullOrWhiteSpace($Value.authorizationReference))
+            ($PackageVersion -ceq '0.2.3' -and $Value.changeKind -ceq 'CanonicalAdapterPath' -and -not [string]::IsNullOrWhiteSpace($Value.authorizationReference)) -or
+            ($PackageVersion -ceq '0.2.4' -and $Value.changeKind -ceq 'DocumentationCorrection' -and -not [string]::IsNullOrWhiteSpace($Value.authorizationReference))
         $null = [DateTimeOffset]::Parse([string]$Value.preparedAt, [Globalization.CultureInfo]::InvariantCulture)
         return $testCompatibilityValid -and $Value.schemaVersion -eq 1 -and $Value.presetId -ceq $Id -and
             $Value.packageVersion -ceq $PackageVersion -and

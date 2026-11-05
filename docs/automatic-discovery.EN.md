@@ -1,11 +1,11 @@
-# Automatic adapters: development candidate 0.2.0
+# Automatic adapters: Model Routing Governance 0.2.4
 
 [Deutsch](automatic-discovery.md) · [User guide](user-guide.EN.md)
 
-This candidate adds Claude, Copilot and OpenCode. Existing Codex/Antigravity
-rules, profiles and invocations remain unchanged. Release, installation and
-rollout are outside the current authority. Examples apply to the reviewed
-candidate source and do not change installed presets.
+The package supports Claude, Copilot and OpenCode. Existing Codex/Antigravity
+rules, profiles and invocations remain unchanged. Examples do not change
+installed presets. Installation, local binding changes and rollout each
+require separate authorization.
 
 ## Prerequisites and status
 

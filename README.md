@@ -1,35 +1,22 @@
 # Model Routing Governance
 
-<!-- current-package: 0.2.3 -->
+<!-- current-package: 0.2.4 -->
 
-Paketkennung: **v0.2.3**. [Vorbereitung und Veröffentlichungsgrenze](docs/release-0.2.3-validation.md). Die Release-Seite und der externe Archivnachweis belegen die Veröffentlichung, nicht dieser Vorbereitungsstand. Frühere Versionsnachweise unten bleiben historisch.
+Paketkennung: **v0.2.4**. Dieses Dokument beschreibt das versionierte Paket.
+Den tatsächlichen Veröffentlichungsstatus belegt die
+[GitHub-Release-Seite](https://github.com/hindermath/spec-kit-preset-model-routing-governance/releases/tag/v0.2.4).
+Der [Patch-Nachweis](docs/release-0.2.4-validation.md) beschreibt die
+Dokumentationskorrektur; ein Quellcommit allein belegt keine Veröffentlichung.
 
-<span lang="en">Package identity: v0.2.3. The release page and external archive evidence prove publication, not this preparation snapshot. Earlier version records below remain historical.</span>
+*Package identity: v0.2.4. This document describes the versioned package.
+The GitHub release page records actual publication. The patch record explains
+the documentation correction; a source commit alone does not prove publication.*
 
-[Release-Abschluss und Verbesserungsprofil / Publication closeout and improvement profile](docs/release-0.1.6-validation.md).
+**Leserpfad / Reader path:** [Deutsch](docs/user-guide.md) · [English](docs/user-guide.EN.md).
 
-Der unten verlinkte Basispaket-Nachweis bleibt historisch; dieses Paket nimmt die Quellenkorrekturen als neue Version auf.
-
-<span lang="en">The linked base-package evidence remains historical; this package includes the source corrections as a new version.</span>
-
-**Leserpfad / Reader path:** [Deutsch: Einstieg, Begriffe und Fehlerhilfe](docs/user-guide.md) · [English: start, terms and troubleshooting](docs/user-guide.EN.md).
-
-Historisches Basispaket **v0.1.6**. Der [Release-Stand](https://github.com/hindermath/spec-kit-preset-model-routing-governance/releases) wird getrennt geprüft; ein Commit auf main ist noch keine Veröffentlichung oder Installation.
-
-*Historical base package v0.1.6. The release page records actual publication separately; a main-branch commit is not publication or installation.*
-
-
-Patch **0.1.6** liefert die verbesserte zweisprachige Einstiegs- und
-Kompositionsdokumentation. Verhalten und Berechtigungsgrenzen bleiben erhalten.
-[Release-Nachweis / Release record](docs/release-0.1.6-validation.md).
-
-*Patch 0.1.6 packages the improved bilingual getting-started and composition
-guide. Behavior and authority boundaries remain unchanged.*
-
-Version `0.1.6` removes a stale version-specific diagnostic from an unsupported
-harness path. Generated agent instructions, bilingual documentation,
-PowerShell 7 validation, and all routing and authority semantics remain
-unchanged from 0.1.3.
+Historischer Nachweis / Historical record:
+[Release 0.1.6](docs/release-0.1.6-validation.md).
+Er gilt nur für seinen damaligen Umfang. / It applies only to its recorded scope.
 
 ## Deutsch
 
@@ -75,7 +62,7 @@ Leserpfad / Reader path: [Installation](#installation) → [Rollen](#rollen) →
 [English](#english). Fehlende Tools oder mehrdeutige Discovery klären, keinen
 Fallback erfinden. / Resolve reported tool/discovery blockers without guessing.
 
-Neue Adapter / New adapters: [Deutsch](docs/automatic-discovery.md) · [English](docs/automatic-discovery.EN.md). **v0.2.3 ist ein Entwicklungskandidat / is a development candidate.** Kein Release, keine Installation oder Verteilung / no release, installation or rollout.
+Neue Adapter / New adapters: [Deutsch](docs/automatic-discovery.md) · [English](docs/automatic-discovery.EN.md). Die Adapter gehören zum Paket. Installation und lokale Bindungsänderungen benötigen einen eigenen Auftrag. / The adapters are part of the package. Installation and local binding changes require separate authorization.
 
 Read-only Installationsprüfung / Read-only installation checks:
 
@@ -108,7 +95,7 @@ konkrete Bindung liegt lokal außerhalb des Projekt-Repositories.
 ### Harness-Fähigkeiten
 
 Die Policy nennt Adapter-Kategorien; eine Kategorie ist kein Nachweis einer
-implementierten Funktion. Im Entwicklungskandidaten dieses Pakets gilt:
+implementierten Funktion. In diesem Paket gilt:
 
 | Harness | Tatsächlich vorhandener Pfad / Implemented path |
 |---|---|
@@ -118,7 +105,7 @@ implementierten Funktion. Im Entwicklungskandidaten dieses Pakets gilt:
 | Copilot | SDK-Modellliste mit Policy-Prüfung / SDK model list with policy checks |
 | OpenCode | Lokale Server-Metadaten, expliziter Provider / local server metadata, explicit provider |
 
-*Policy categories do not prove implemented capabilities. All five harnesses have automatic paths in this candidate. New adapters have explicit prerequisites and conservative selection rules; see the adapter guide.*
+*Policy categories do not prove implemented capabilities. All five harnesses have automatic paths in this package. New adapters have explicit prerequisites and conservative selection rules; see the adapter guide.*
 
 Codex verwendet die vorhandenen Default-/Beschreibungshinweise; Antigravity
 verwendet vorhandene Namensmuster und vorgegebene Effort-Werte. Das sind
@@ -199,14 +186,12 @@ Codex binding only after explicit authorization.
 
 ## Installation
 
-DE: Der folgende Befehl zeigt das spätere Release-Ziel. Kandidat v0.2.3 ist
-noch nicht veröffentlicht; in diesem PR wird nichts installiert.
+DE: Installation des versionierten Pakets; vorhandene Voraussetzungen zuerst prüfen.
 
-EN: The following command shows the future release target. Candidate v0.2.3
-has not been published; this PR performs no installation.
+EN: Install the versioned package after checking its prerequisites.
 
 ```bash
-specify preset add --from https://github.com/hindermath/spec-kit-preset-model-routing-governance/archive/refs/tags/v0.2.3.zip --priority 61
+specify preset add --from https://github.com/hindermath/spec-kit-preset-model-routing-governance/archive/refs/tags/v0.2.4.zip --priority 61
 ```
 
 License: MIT.
