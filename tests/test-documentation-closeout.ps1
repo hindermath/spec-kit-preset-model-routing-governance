@@ -132,7 +132,7 @@ foreach ($stale in @('v0.2.3 ist ein Entwicklungskandidat','v0.2.3 is a developm
 Assert-DocRequirement (Test-DocCurrentPackageText 'Publication is recorded on the release page; installation requires authorization.') 'neutral source/publication boundary accepted'
 
 $ownCount = Assert-DocRoutingCoverage $root
-if ($id -ceq 'model-routing-governance' -and $version -in @('0.2.0','0.2.1','0.2.2','0.2.3','0.2.4','0.2.5')) {
+if ($id -ceq 'model-routing-governance' -and $version -in @('0.2.0','0.2.1','0.2.2','0.2.3','0.2.4','0.2.5','0.2.6')) {
     foreach ($name in @('docs/automatic-discovery.md','docs/automatic-discovery.EN.md')) {
         $adapterGuide = [IO.File]::ReadAllText((Join-Path $root $name))
         foreach ($contract in @('-SdkModulePath','-OpenCodeServerUrl','-OpenCodeProvider','-FrontierModel','-FastModel','selectionPolicySha256','GPT','Gemini','supportedModels()','listModels()','GET /provider','25','4 MiB','default','CEFR B2','WCAG 2.2 AA')) {
