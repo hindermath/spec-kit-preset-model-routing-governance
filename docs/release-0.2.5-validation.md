@@ -63,3 +63,20 @@ Distribution is source-only: no Home sync, consumer rollout or central
 installation-matrix/lock change. Re-evaluate on package, reader-path or
 maintainer-feedback changes. Preparation does not prove publication; the release
 page and independently verified tag archive provide publication evidence.
+
+## CI-Nachtrag / CI follow-up
+
+DE: Ubuntu brach bei der vollständigen PSScriptAnalyzer-1.25.0-Prüfung zweimal
+intern ab: zuerst mit NullReferenceException, danach wegen mehrfacher dynamischer
+Module in derselben Assembly. Die CI analysiert deshalb jede Datei in einem
+eigenen Prozess. Regelwerk, Dateimenge, Befunde und Fehler bleiben verbindlich;
+keine Ausnahme wird verschluckt. Diese Änderung betrifft nur die Paket-CI.
+
+EN: Ubuntu's full PSScriptAnalyzer 1.25.0 pass failed internally twice, first
+with NullReferenceException and then because multiple dynamic modules shared
+one assembly. CI now analyzes each file in a separate process. The rule set,
+file coverage, findings and error gates remain unchanged; no exception is
+suppressed. This change affects package CI only.
+
+Primary implementation precedent:
+https://github.com/microsoft/hve-core/blob/main/scripts/linting/Invoke-PSScriptAnalyzer.ps1
