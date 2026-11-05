@@ -1,12 +1,11 @@
-# Automatische Adapter: Entwicklungskandidat 0.2.4
+# Automatische Adapter: Model Routing Governance 0.2.5
 
 [English](automatic-discovery.EN.md) · [Nutzungsleitfaden](user-guide.md)
 
-Dieser Kandidat aktualisiert die Erkennung für `agy`, Claude, Copilot und
-OpenCode. Die bisherigen Codex-Regeln sowie historische `agy`-Muster, Profile
-und Aufrufe bleiben erhalten. Es gibt keinen
-Release-, Installations- oder Rollout-Auftrag. Die Beispiele gelten erst für
-die geprüfte Kandidatenquelle; sie ändern keine installierten Presets.
+Das Paket unterstützt die Erkennung für `agy`, Claude, Copilot und OpenCode.
+Die bisherigen Codex-Regeln sowie historische `agy`-Muster, Profile und Aufrufe
+bleiben erhalten. Beispiele ändern keine installierten Presets. Installation,
+lokale Bindungsänderungen und Rollout benötigen jeweils einen eigenen Auftrag.
 
 ## Voraussetzungen und Status
 

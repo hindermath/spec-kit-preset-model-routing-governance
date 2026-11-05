@@ -115,8 +115,24 @@ foreach ($command in $catalog.commands.Keys) {
         Assert-DocRequirement ($text.Contains($command) -and $text.Contains($catalog.commands[$command])) 'equivalent role vocabulary'
     }
 }
+# DE/EN: Check current reader paths as well as historical evidence; old tests
+# only checked introductions and missed contradictory installation sections.
+function Test-DocCurrentPackageText {
+    param([string]$Text)
+    return $Text -notmatch '(?i)Entwicklungskandidat|development candidate|noch nicht veröffentlicht|has not been published|spätere Release-Ziel|future release target|im Entwicklungskandidaten|in this candidate|The candidate also supports|Der Kandidat unterstützt'
+}
+foreach ($reader in @('README.md','docs/user-guide.md','docs/user-guide.EN.md','docs/automatic-discovery.md','docs/automatic-discovery.EN.md')) {
+    $currentReader = [IO.File]::ReadAllText((Join-Path $root $reader))
+    Assert-DocRequirement (Test-DocCurrentPackageText $currentReader) "current package wording: $reader"
+}
+foreach ($stale in @('v0.2.3 ist ein Entwicklungskandidat','v0.2.3 is a development candidate','Kandidat v0.2.3 ist noch nicht veröffentlicht','Candidate v0.2.3 has not been published','future release target','The candidate also supports Claude')) {
+    Assert-DocRequirement (-not (Test-DocCurrentPackageText $stale)) 'stale current-publication fixture rejected'
+    Assert-DocRequirement (-not (Test-DocCurrentPackageText ("Current package`r`n" + $stale))) 'CRLF stale fixture rejected'
+}
+Assert-DocRequirement (Test-DocCurrentPackageText 'Publication is recorded on the release page; installation requires authorization.') 'neutral source/publication boundary accepted'
+
 $ownCount = Assert-DocRoutingCoverage $root
-if ($id -ceq 'model-routing-governance' -and $version -in @('0.2.0','0.2.1','0.2.2','0.2.3')) {
+if ($id -ceq 'model-routing-governance' -and $version -in @('0.2.0','0.2.1','0.2.2','0.2.3','0.2.4','0.2.5')) {
     foreach ($name in @('docs/automatic-discovery.md','docs/automatic-discovery.EN.md')) {
         $adapterGuide = [IO.File]::ReadAllText((Join-Path $root $name))
         foreach ($contract in @('-SdkModulePath','-OpenCodeServerUrl','-OpenCodeProvider','-FrontierModel','-FastModel','selectionPolicySha256','GPT','Gemini','supportedModels()','listModels()','GET /provider','25','4 MiB','default','CEFR B2','WCAG 2.2 AA')) {
