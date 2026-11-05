@@ -1,5 +1,7 @@
 # Model Routing Governance
 
+[CI-Exitcodes / CI exit codes](docs/ci-exit-code-integrity.md)
+
 [Normale Runner-Ausfuehrung / Production runner integration](docs/execution-integration.md)
 
 [Gekoppelte Testbasis / Paired validation basis](docs/validation-basis.md)
