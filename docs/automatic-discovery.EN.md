@@ -1,9 +1,10 @@
-# Automatic adapters: development candidate 0.2.0
+# Automatic adapters: development candidate 0.2.4
 
 [Deutsch](automatic-discovery.md) · [User guide](user-guide.EN.md)
 
-This candidate adds Claude, Copilot and OpenCode. Existing Codex/Antigravity
-rules, profiles and invocations remain unchanged. Release, installation and
+This candidate updates discovery for `agy`, Claude, Copilot and OpenCode.
+Existing Codex rules and historical `agy` patterns, profiles and invocations
+remain unchanged. Release, installation and
 rollout are outside the current authority. Examples apply to the reviewed
 candidate source and do not change installed presets.
 
@@ -39,8 +40,12 @@ bash scripts/resolve-model-routing.sh -Action Status -Harness OpenCode -OpenCode
 ```
 
 The URL must be an HTTP origin with `127.0.0.1` or `[::1]`. Paths, credentials,
-queries, fragments and redirects are rejected. Only `GET /provider` is read,
-without a proxy. Optional server credentials come from
+queries, fragments and redirects are rejected. The resolver first reads
+`GET /api/provider` and `GET /api/model`, without a proxy. It supports the
+OpenCode 2.2.5 `data[]` envelopes, exact `providerID` values, enabled active
+models and confirmed `variants[]`. If the current API is unavailable or
+returns HTML, only `GET /provider` is tried as a legacy fallback. Unknown
+schemas remain blocked. Optional server credentials come from
 `OPENCODE_SERVER_PASSWORD` and `OPENCODE_SERVER_USERNAME`; the default username
 is `opencode`. Never put credentials in URLs or Git. HTTP responses are limited
 to 4 MiB and bounded by timeouts. No cache refresh.
@@ -57,12 +62,18 @@ session.
 The versioned source `scripts/adapters/selection-policy.json` filters confirmed
 capabilities first, then uses declared preference tiers. This is an operating
 heuristic, not a benchmark or cross-provider quality ranking. Neither discovery
-order nor a higher version number alone selects a model. Codex and `agy` stay
-unchanged.
+order nor a higher version number alone selects a model. Codex stays unchanged.
+Historical `agy` patterns remain valid; current `claude-opus-*-high` and
+`gemini-*-argon-high` names are added. Fast still uses
+`gemini-*-flash-medium`.
 
 Claude, Copilot and OpenCode return the structured phase result on standard
-output. `invoke-harness-with-result.ps1` accepts only a successful JSON object
-and atomically writes it to the autonomous runner's `{outputFile}` path. This
+output. `invoke-harness-with-result.ps1` receives the native CLI argument list
+as one JSON-encoded array. For Copilot it extracts the last
+`assistant.message` from the native JSONL event stream as the final response, then accepts only a successful JSON object
+and atomically writes it to the autonomous runner's `{outputFile}` path. The
+result instruction only prohibits writing that runner result file directly;
+task-authorized project changes remain permitted. This
 also supports read-only roles without granting the harness file-write access.
 Empty, failed or unstructured output creates no result file.
 
@@ -102,8 +113,21 @@ Example with synthetic IDs, not promised availability:
 bash scripts/resolve-model-routing.sh -Action Status -Harness Copilot -SdkModulePath /absolute/sdk/entry.js -FrontierModel gpt-99 -FastModel gpt-99-mini
 ```
 
-Repeat the same explicit selection parameters on subsequent status/refresh
-calls. These new parameters do not apply to Codex or `agy`.
+After a successful refresh, Claude, Copilot and OpenCode automatically reuse
+those deliberately selected models on later status/refresh calls. The stored
+schema-2.0 profile is accepted only when frontier, implementation and review
+contain exactly the same model ID and reasoning level, the fast profile is
+unambiguous, and the current catalogue still reports every model as active,
+policy-compliant and eligible for the stored reasoning level. A parameter on
+the current call takes precedence for its role; the other role may still come
+from the profile. With no stored selection, the existing fail-closed policy
+continues to apply.
+
+If a stored model disappears or its policy or reasoning capability changes,
+the call blocks and preserves the profile byte for byte. It never silently
+switches to a newer model. An explicitly supplied valid replacement may replace
+the stale selection for that role. This reuse does not apply to Codex or `agy`;
+their behavior remains unchanged.
 
 Exit code `0` means aligned, `2` means refresh required, `3` means blocked.
 With no profile, status proposes a binding and returns 2. Ambiguity, duplicate
@@ -122,10 +146,16 @@ only renders four profiles, including a later access preflight, without running
 them. A subsequent runner must check its own authority, worktree boundary and
 result file.
 
-New profiles use native CLI flags: Claude `--effort`, Copilot `--effort`,
-OpenCode `--variant`. CLI help is checked for required switches before live
-discovery. Preflight requests `MODEL_READY`; Claude disables tools/MCP,
-Copilot restricts tools to reading, OpenCode uses `plan`. Fast profiles also use
+New profiles use native CLI flags: Claude `--effort`; Copilot prefers
+`--reasoning-effort` and uses `--effort` only when that legacy spelling is
+detected; OpenCode uses either a detected `--variant` flag or the
+`provider/model#variant` form documented by 2.2.5. CLI help is captured from stdout and
+stderr in a bounded child process, stripped of ANSI/control sequences and then
+checked for whole flag tokens. Copilot stays blocked if neither spelling is
+present. Preflight requests `MODEL_READY`; Claude disables tools/MCP,
+and explicitly separates the positional prompt from the variadic MCP
+configuration; Copilot restricts tools to reading and uses `--silent` to keep
+diagnostic banners off machine-readable standard output, while OpenCode uses `plan`. Fast profiles also use
 plan/read modes. Implementation profiles use Claude `acceptEdits`, OpenCode
 `build`, or Copilot's existing permission checks. No bypass or blanket tool
 approval. Vendor modes are **not OS sandboxes**. In particular, OpenCode agents,

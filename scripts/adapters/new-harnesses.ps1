@@ -10,20 +10,72 @@
 #>
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$script:MREffortFlags = @{
+    Claude = '--effort'
+    Copilot = '--reasoning-effort'
+    OpenCode = '--variant'
+}
+$script:MROpenCodeVariantInModel = $false
+
+function Get-MRNewCliHelp {
+    param([string] $Executable, [string[]] $Arguments)
+    $commands = @(Get-Command $Executable -CommandType Application -ErrorAction SilentlyContinue)
+    Assert-MRCondition ($commands.Count -gt 0) "CLI executable missing: $Executable"
+    $command = $commands[0]
+    $start = [Diagnostics.ProcessStartInfo]::new($command.Source)
+    foreach ($argument in $Arguments) { $start.ArgumentList.Add($argument) }
+    $start.UseShellExecute = $false
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $start
+    Assert-MRCondition $process.Start() 'CLI capability check could not start.'
+    try {
+        $stdout = $process.StandardOutput.ReadToEndAsync()
+        $stderr = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit(10000)) {
+            $process.Kill($true)
+            throw 'CLI capability check timeout.'
+        }
+        $text = $stdout.GetAwaiter().GetResult() + "`n" + $stderr.GetAwaiter().GetResult()
+        Assert-MRCondition ($process.ExitCode -eq 0 -and $text.Length -le 1MB) 'CLI capability check failed.'
+        # Some native CLIs colorize or otherwise decorate help even when redirected.
+        $withoutAnsi = [regex]::Replace($text, "`e\[[0-?]*[ -/]*[@-~]", '')
+        return [regex]::Replace($withoutAnsi, '[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '')
+    } finally { $process.Dispose() }
+}
+
+function Test-MRHelpFlag {
+    param([string] $Text, [string] $Flag)
+    return [regex]::IsMatch($Text, "(?<![A-Za-z0-9-])$([regex]::Escape($Flag))(?![A-Za-z0-9-])")
+}
 
 function Test-MRNewCli {
     param([string] $Family)
     $executable = [string] $script:Harnesses[$Family].executable
     $arguments = if ($Family -eq 'OpenCode') { @('run', '--help') } else { @('--help') }
-    $text = @(& $executable @arguments 2>&1) -join "`n"
-    Assert-MRCondition ($LASTEXITCODE -eq 0) 'CLI capability check failed.'
+    $text = Get-MRNewCliHelp $executable $arguments
     $required = switch ($Family) {
         Claude { @('--model', '--effort', '--permission-mode', '--tools', '--strict-mcp-config', '--mcp-config', '--no-session-persistence', '--print') }
-        Copilot { @('--model', '--effort', '--available-tools', '--deny-tool', '--disable-builtin-mcps', '--no-auto-update', '--no-ask-user', '--prompt') }
-        OpenCode { @('--model', '--variant', '--agent') }
+        Copilot { @('--model', '--available-tools', '--deny-tool', '--disable-builtin-mcps', '--no-auto-update', '--no-ask-user', '--prompt', '--silent') }
+        OpenCode { @('--model', '--agent') }
     }
     foreach ($flag in $required) {
-        Assert-MRCondition ($text.Contains($flag)) "${Family}: CLI interface unsupported; required flag $flag missing."
+        Assert-MRCondition (Test-MRHelpFlag $text $flag) "${Family}: CLI interface unsupported; required flag $flag missing."
+    }
+    if ($Family -eq 'Copilot') {
+        $effortFlag = if (Test-MRHelpFlag $text '--reasoning-effort') { '--reasoning-effort' }
+            elseif (Test-MRHelpFlag $text '--effort') { '--effort' }
+            else { '' }
+        Assert-MRCondition (-not [string]::IsNullOrWhiteSpace($effortFlag)) 'Copilot: CLI interface unsupported; required reasoning-effort flag missing.'
+        $script:MREffortFlags.Copilot = $effortFlag
+    } elseif ($Family -eq 'OpenCode') {
+        if (Test-MRHelpFlag $text '--variant') {
+            $script:MROpenCodeVariantInModel = $false
+        } else {
+            Assert-MRCondition ($text -match 'provider/model#variant') 'OpenCode: CLI interface unsupported; neither --variant nor provider/model#variant is documented.'
+            $script:MROpenCodeVariantInModel = $true
+        }
     }
 }
 
@@ -58,6 +110,63 @@ function Invoke-MRSdkDiscovery {
     } finally { $process.Dispose() }
 }
 
+function Invoke-MROpenCodeRequest {
+    param([Net.Http.HttpClient] $Client, [uri] $BaseUri, [string] $RelativePath)
+    $response = $Client.GetAsync([uri]::new($BaseUri, $RelativePath), [Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
+    try {
+        if ([int] $response.StatusCode -ge 300 -and [int] $response.StatusCode -lt 400) {
+            throw 'OpenCode metadata redirects are blocked.'
+        }
+        $stream = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
+        $memory = [IO.MemoryStream]::new()
+        try {
+            $buffer = [byte[]]::new(8192)
+            $cancel = [Threading.CancellationTokenSource]::new(15000)
+            try {
+                while (($count = $stream.ReadAsync($buffer, 0, $buffer.Length, $cancel.Token).GetAwaiter().GetResult()) -gt 0) {
+                    Assert-MRCondition (($memory.Length + $count) -le 4MB) 'OpenCode metadata exceeds limit.'
+                    $memory.Write($buffer, 0, $count)
+                }
+            } finally { $cancel.Dispose() }
+            $text = [Text.Encoding]::UTF8.GetString($memory.ToArray())
+        } finally { $memory.Dispose(); $stream.Dispose() }
+        return [ordered]@{
+            success = $response.IsSuccessStatusCode
+            statusCode = [int] $response.StatusCode
+            contentType = [string] $response.Content.Headers.ContentType.MediaType
+            text = $text
+        }
+    } finally { $response.Dispose() }
+}
+
+function ConvertFrom-MROpenCodeV2 {
+    param([hashtable] $Providers, [hashtable] $Models)
+    Assert-MRCondition ($Providers.data -is [object[]] -and $Models.data -is [object[]]) 'OpenCode v2 metadata schema unsupported.'
+    $providerMatches = @($Providers.data | Where-Object {
+        $_ -is [hashtable] -and [string] $_.id -ceq $OpenCodeProvider -and [string] $_.activation -cne 'disabled'
+    })
+    Assert-MRCondition ($providerMatches.Count -eq 1) 'Selected OpenCode provider is unavailable or ambiguous.'
+    $normalized = [Collections.Generic.List[object]]::new()
+    foreach ($item in @($Models.data | Where-Object {
+        $_ -is [hashtable] -and [string] $_.providerID -ceq $OpenCodeProvider -and
+            $_.enabled -is [bool] -and $_.enabled -and [string] $_.status -ceq 'active'
+    })) {
+        $variants = @{}
+        if ($item.variants -is [object[]]) {
+            foreach ($variant in $item.variants) {
+                if ($variant -is [hashtable] -and $variant.id -is [string]) { $variants[[string] $variant.id] = @{} }
+            }
+        }
+        $normalized.Add(@{
+            id = [string] $item.id
+            capabilities = @{ reasoning = $variants.Count -gt 0 }
+            variants = $variants
+        })
+    }
+    Assert-MRCondition ($normalized.Count -gt 0) 'Selected OpenCode provider has no active enabled models.'
+    return @{ models = $normalized.ToArray(); provider = $OpenCodeProvider }
+}
+
 function Invoke-MROpenCodeDiscovery {
     Assert-MRCondition (-not [string]::IsNullOrWhiteSpace($OpenCodeProvider)) '-OpenCodeProvider is required; no implicit provider selection.'
     $uri = $null
@@ -75,23 +184,24 @@ function Invoke-MROpenCodeDiscovery {
             $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("${username}:$($env:OPENCODE_SERVER_PASSWORD)"))
             $client.DefaultRequestHeaders.Authorization = [Net.Http.Headers.AuthenticationHeaderValue]::new('Basic', $encoded)
         }
-        $response = $client.GetAsync([uri]::new($uri, 'provider'), [Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
-        try {
-            Assert-MRCondition $response.IsSuccessStatusCode 'OpenCode provider metadata unavailable; check local server/authentication.'
-            $stream = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
-            $memory = [IO.MemoryStream]::new()
-            try {
-                $buffer = [byte[]]::new(8192)
-                $cancel = [Threading.CancellationTokenSource]::new(15000)
-                try {
-                    while (($count = $stream.ReadAsync($buffer, 0, $buffer.Length, $cancel.Token).GetAwaiter().GetResult()) -gt 0) {
-                        Assert-MRCondition (($memory.Length + $count) -le 4MB) 'OpenCode metadata exceeds limit.'
-                        $memory.Write($buffer, 0, $count)
-                    }
-                } finally { $cancel.Dispose() }
-                $data = [Text.Encoding]::UTF8.GetString($memory.ToArray()) | ConvertFrom-Json -AsHashtable -Depth 50
-            } finally { $memory.Dispose(); $stream.Dispose() }
-        } finally { $response.Dispose() }
+        $providerReply = Invoke-MROpenCodeRequest $client $uri 'api/provider'
+        $useLegacy = -not $providerReply.success -or $providerReply.contentType -ceq 'text/html'
+        if (-not $useLegacy) {
+            try { $providerData = $providerReply.text | ConvertFrom-Json -AsHashtable -Depth 50 }
+            catch { throw 'OpenCode v2 provider metadata JSON invalid.' }
+            if ($providerData.data -is [object[]]) {
+                $modelReply = Invoke-MROpenCodeRequest $client $uri 'api/model'
+                Assert-MRCondition $modelReply.success 'OpenCode v2 model metadata unavailable.'
+                try { $modelData = $modelReply.text | ConvertFrom-Json -AsHashtable -Depth 50 }
+                catch { throw 'OpenCode v2 model metadata JSON invalid.' }
+                return ConvertFrom-MROpenCodeV2 $providerData $modelData
+            }
+            throw 'OpenCode v2 provider metadata schema unsupported.'
+        }
+        $legacyReply = Invoke-MROpenCodeRequest $client $uri 'provider'
+        Assert-MRCondition $legacyReply.success 'OpenCode provider metadata unavailable; check local server/authentication.'
+        try { $data = $legacyReply.text | ConvertFrom-Json -AsHashtable -Depth 50 }
+        catch { throw 'OpenCode legacy provider metadata JSON invalid.' }
         Assert-MRCondition ($data.connected -is [object[]] -and $OpenCodeProvider -cin $data.connected) 'Selected OpenCode provider is not connected.'
         $providers = @($data.all | Where-Object { $_.id -ceq $OpenCodeProvider })
         Assert-MRCondition ($providers.Count -eq 1 -and $providers[0].models -is [hashtable]) 'OpenCode provider metadata is ambiguous or unsupported.'
@@ -201,10 +311,15 @@ function Select-MRAdapterCandidate {
 }
 
 function Select-MRDiscoveredModel {
-    param([string] $Family, [AllowEmptyCollection()][object[]] $Models)
+    param(
+        [string] $Family,
+        [AllowEmptyCollection()][object[]] $Models,
+        [string] $EffectiveFrontierModel = $FrontierModel,
+        [string] $EffectiveFastModel = $FastModel
+    )
     $policy = Read-MRJson (Join-Path $PSScriptRoot 'selection-policy.json')
-    $frontier = Select-MRAdapterCandidate $Family 'frontier' $Models $policy.roles.frontier $FrontierModel
-    $fast = Select-MRAdapterCandidate $Family 'fast' $Models $policy.roles.fast $FastModel $frontier
+    $frontier = Select-MRAdapterCandidate $Family 'frontier' $Models $policy.roles.frontier $EffectiveFrontierModel
+    $fast = Select-MRAdapterCandidate $Family 'fast' $Models $policy.roles.fast $EffectiveFastModel $frontier
     return @{
         frontier = $frontier; fast = $fast
         frontierEffort = Get-MRAdapterEffort $frontier 'frontier'
@@ -217,22 +332,24 @@ function New-MRAdapterProfile {
     [CmdletBinding()]
     param([string] $Family, [string] $Role, [hashtable] $Model, [string] $Effort)
     $readOnly = $Role -eq 'fast-mechanical'
-    $effortArgs = if ($Effort -eq 'default') { @() } elseif ($Family -eq 'OpenCode') { @('--variant', '{reasoningEffort}') } else { @('--effort', '{reasoningEffort}') }
-    $resultInstruction = 'Return the machine-readable autonomous phase result as the only standard-output content. Use autonomous-phase-result-template.json. Do not write files.'
+    $effortArgs = if ($Effort -eq 'default' -or ($Family -eq 'OpenCode' -and $script:MROpenCodeVariantInModel)) { @() } else { @([string] $script:MREffortFlags[$Family], '{reasoningEffort}') }
+    $resultInstruction = 'Return the machine-readable autonomous phase result as the only standard-output content. Use autonomous-phase-result-template.json. Do not write the result file yourself; project-file writes remain governed by the task and this profile.'
     switch ($Family) {
         Claude {
             $common = @('--print', '--no-session-persistence', '--model', '{model}') + $effortArgs
-            $preflight = $common + @('--permission-mode', 'plan', '--tools', '', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', 'Reply exactly MODEL_READY without using tools.')
+            # --mcp-config accepts multiple values, so -- is required before the positional prompt.
+            $preflight = $common + @('--permission-mode', 'plan', '--tools', '', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--', 'Reply exactly MODEL_READY without using tools.')
             $mode = if ($readOnly) { 'plan' } else { 'acceptEdits' }
             $harnessArguments = $common + @('--permission-mode', $mode, ('{prompt}' + "`n`n" + $resultInstruction))
         }
         Copilot {
-            $common = @('--model', '{model}', '--no-auto-update', '--no-ask-user') + $effortArgs
+            $common = @('--model', '{model}', '--no-auto-update', '--no-ask-user', '--silent') + $effortArgs
             $preflight = $common + @('--available-tools', 'view', '--deny-tool', 'write,shell', '--disable-builtin-mcps', '--prompt', 'Reply exactly MODEL_READY without using tools.')
-            $harnessArguments = $common + $(if ($readOnly) { @('--available-tools', 'view', '--deny-tool', 'write,shell', '--disable-builtin-mcps') } else { @() }) + @('--prompt', ('{prompt}' + "`n`n" + $resultInstruction))
+            $harnessArguments = $common + $(if ($readOnly) { @('--available-tools', 'view', '--deny-tool', 'write,shell', '--disable-builtin-mcps') } else { @() }) + @('--output-format', 'json', '--prompt', ('{prompt}' + "`n`n" + $resultInstruction))
         }
         OpenCode {
-            $common = @('run', '--model', '{model}') + $effortArgs
+            $modelArgument = if ($Effort -ne 'default' -and $script:MROpenCodeVariantInModel) { '{model}#{reasoningEffort}' } else { '{model}' }
+            $common = @('run', '--model', $modelArgument) + $effortArgs
             $preflight = $common + @('--agent', 'plan', 'Reply exactly MODEL_READY without using tools.')
             $mode = if ($readOnly) { 'plan' } else { 'build' }
             $harnessArguments = $common + @('--agent', $mode, ('{prompt}' + "`n`n" + $resultInstruction))
@@ -241,7 +358,9 @@ function New-MRAdapterProfile {
     $executable = [string] $script:Harnesses[$Family].executable
     # Repository-relative canonical path keeps root/preset resolution byte-identical.
     $resultAdapter = '.specify/presets/model-routing-governance/scripts/adapters/invoke-harness-with-result.ps1'
-    $arguments = @('-NoProfile', '-File', $resultAdapter, '-OutputFile', '{outputFile}', '-Executable', $executable, '--') + $harnessArguments
+    $protocol = if ($Family -eq 'Copilot') { 'CopilotJsonl' } else { 'Plain' }
+    $arguments = @('-NoProfile', '-File', $resultAdapter, '-OutputFile', '{outputFile}', '-Executable', $executable,
+        '-OutputProtocol', $protocol, '-HarnessArgumentsJson', ($harnessArguments | ConvertTo-Json -Compress))
     return [ordered]@{
         routingRole = $Role; agentFamily = $Family; model = $Model.model
         reasoningEffort = $Effort; executable = 'pwsh'

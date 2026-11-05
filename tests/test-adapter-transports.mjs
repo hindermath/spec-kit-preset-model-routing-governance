@@ -7,16 +7,29 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 
 const resolver = resolve('scripts/resolve-model-routing.ps1');
-const flags = '--model --effort --permission-mode --tools --strict-mcp-config --mcp-config --no-session-persistence --print --available-tools --deny-tool --disable-builtin-mcps --no-auto-update --no-ask-user --prompt --variant --agent';
+const flags = '--model --effort --reasoning-effort --permission-mode --tools --strict-mcp-config --mcp-config --no-session-persistence --print --available-tools --deny-tool --disable-builtin-mcps --no-auto-update --no-ask-user --prompt --silent --variant --agent';
+
+async function writeCli(dir, cli, help, ansi = false) {
+  const windows = process.platform === 'win32';
+  const body = windows
+    ? `@echo off\r\necho fixture 1.0 ${help}\r\n`
+    : ansi
+      ? `#!/bin/sh\nprintf '\\033[31m%s\\033[0m\\n' 'fixture 1.0 ${help}'\n`
+      : `#!/bin/sh\nprintf '%s\\n' 'fixture 1.0 ${help}'\n`;
+  await writeFile(join(dir, cli + (windows ? '.cmd' : '')), body, { mode: 0o755 });
+}
+
+function nativeHarnessArguments(profile) {
+  const index = profile.arguments.indexOf('-HarnessArgumentsJson');
+  assert.ok(index >= 0 && index + 1 < profile.arguments.length, 'missing JSON harness argument transport');
+  return JSON.parse(profile.arguments[index + 1]);
+}
 
 async function withFixture(run) {
   const dir = await mkdtemp(join(tmpdir(), 'routing-transport-'));
   try {
     for (const cli of ['claude', 'copilot', 'opencode']) {
-      const windows = process.platform === 'win32';
-      await writeFile(join(dir, cli + (windows ? '.cmd' : '')), windows
-        ? `@echo off\r\necho fixture 1.0 ${flags}\r\n`
-        : `#!/bin/sh\nprintf '%s\\n' 'fixture 1.0 ${flags}'\n`, { mode: 0o755 });
+      await writeCli(dir, cli, flags, cli === 'claude');
     }
     const execute = args => new Promise((resolveResult, reject) => {
       const child = spawn('pwsh', ['-NoProfile', '-File', resolver, ...args, '-OutputFormat', 'Json', '-ConfigPath', join(dir, 'profiles.json')], {
@@ -56,7 +69,22 @@ test('actual Node/PowerShell bridge transports Claude and Copilot metadata witho
       assert.equal(reply.code, 0, reply.out + reply.err);
       assert.equal(reply.result.roles.length, 4);
       assert.equal(reply.result.roles[0].model, family === 'Claude' ? 'sonnet' : 'gpt-99');
+      if (family === 'Copilot') {
+        const profile = JSON.parse(await readFile(join(dir, 'profiles.json'), 'utf8'));
+        assert.ok(nativeHarnessArguments(profile.profiles['copilot-frontier-auto']).includes('--reasoning-effort'));
+      }
     }
+    const copilotCommon = '--model --available-tools --deny-tool --disable-builtin-mcps --no-auto-update --no-ask-user --prompt --silent';
+    await writeCli(dir, 'copilot', `${copilotCommon} --effort`);
+    const legacyFlag = await execute(['-Action', 'Refresh', '-Harness', 'Copilot', '-SdkModulePath', modulePath]);
+    assert.equal(legacyFlag.code, 0, legacyFlag.out + legacyFlag.err);
+    let profile = JSON.parse(await readFile(join(dir, 'profiles.json'), 'utf8'));
+    assert.ok(nativeHarnessArguments(profile.profiles['copilot-frontier-auto']).includes('--effort'));
+    assert.ok(!nativeHarnessArguments(profile.profiles['copilot-frontier-auto']).includes('--reasoning-effort'));
+    await writeCli(dir, 'copilot', copilotCommon);
+    const missingEffort = await execute(['-Action', 'Status', '-Harness', 'Copilot', '-SdkModulePath', modulePath]);
+    assert.equal(missingEffort.code, 3);
+    assert.match(missingEffort.result.reason, /reasoning-effort flag missing/);
     const before = await readFile(join(dir, 'profiles.json'), 'utf8');
     await writeFile(modulePath, 'throw Error("fixture-private-token-must-not-leak");');
     const blocked = await execute(['-Action', 'Refresh', '-Harness', 'Claude', '-SdkModulePath', modulePath]);
@@ -75,18 +103,37 @@ test('actual Node/PowerShell bridge transports Claude and Copilot metadata witho
   });
 });
 
-test('OpenCode reads only loopback provider endpoint and filters the explicit connected provider', async () => {
+test('OpenCode supports current v2 and legacy provider metadata without weakening filters', async () => {
   const requests = [];
+  let mode = 'v2';
   let connected = ['anthropic'];
   let redirect = false;
+  let activation = 'enabled';
+  let modelEnabled = true;
   const server = createServer((req, res) => {
     requests.push(req.url);
     if (redirect) { res.writeHead(302, { Location: 'http://example.invalid/provider' }); res.end(); return; }
+    if (mode === 'legacy' && req.url === '/api/provider') {
+      res.setHeader('Content-Type', 'text/html'); res.end('<!doctype html>'); return;
+    }
     res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ connected, all: [{ id: 'anthropic', models: {
-      pro: {id:'gemini-99-pro',capabilities:{reasoning:true},variants:{high:{}}},
-      flash: {id:'gemini-99-flash',capabilities:{reasoning:false}},
-    } }, {id:'other',models:{opus:{id:'claude-opus-99',capabilities:{reasoning:true},variants:{high:{}}}}}] }));
+    if (mode === 'v2' && req.url === '/api/provider') {
+      res.end(JSON.stringify({ data: [{ id: 'anthropic', activation }, { id: 'other', activation: 'enabled' }] })); return;
+    }
+    if (mode === 'v2' && req.url === '/api/model') {
+      res.end(JSON.stringify({ data: [
+        {id:'gemini-99-pro',providerID:'anthropic',enabled:modelEnabled,status:'active',variants:[{id:'high'}]},
+        {id:'gemini-99-flash',providerID:'anthropic',enabled:true,status:'active',variants:[{id:'medium'}]},
+        {id:'claude-opus-99',providerID:'other',enabled:true,status:'active',variants:[{id:'high'}]},
+      ] })); return;
+    }
+    if (mode === 'legacy' && req.url === '/provider') {
+      res.end(JSON.stringify({ connected, all: [{ id: 'anthropic', models: {
+        pro: {id:'gemini-99-pro',capabilities:{reasoning:true},variants:{high:{}}},
+        flash: {id:'gemini-99-flash',capabilities:{reasoning:true},variants:{medium:{}}},
+      } }] })); return;
+    }
+    res.writeHead(404); res.end('{}');
   });
   await new Promise(resolveListen => server.listen(0, '127.0.0.1', resolveListen));
   try {
@@ -96,18 +143,38 @@ test('OpenCode reads only loopback provider endpoint and filters the explicit co
       const reply = await execute(args);
       assert.equal(reply.code, 0, reply.out + reply.err);
       assert.equal(reply.result.roles[0].model, 'anthropic/gemini-99-pro');
+      let parsedProfile = JSON.parse(await readFile(join(dir, 'profiles.json'), 'utf8'));
+      assert.ok(nativeHarnessArguments(parsedProfile.profiles['opencode-frontier-auto']).includes('--variant'));
       const before = await readFile(join(dir, 'profiles.json'), 'utf8');
-      connected = [];
+      activation = 'disabled';
       assert.equal((await execute(args)).code, 3);
-      connected = ['anthropic']; redirect = true;
+      activation = 'enabled'; modelEnabled = false;
+      assert.equal((await execute(args)).code, 3);
+      modelEnabled = true; redirect = true;
       assert.equal((await execute(args)).code, 3);
       assert.equal(await readFile(join(dir, 'profiles.json'), 'utf8'), before);
+      redirect = false; mode = 'legacy';
+      assert.equal((await execute(args)).code, 0);
+      const legacyProfile = await readFile(join(dir, 'profiles.json'), 'utf8');
+      connected = [];
+      assert.equal((await execute(args)).code, 3);
+      assert.equal(await readFile(join(dir, 'profiles.json'), 'utf8'), legacyProfile);
       for (const url of ['http://example.invalid', origin + '/path', origin + '?token=secret', 'http://user:secret@127.0.0.1']) {
         const denied = await execute(['-Action','Status','-Harness','OpenCode','-OpenCodeServerUrl',url,'-OpenCodeProvider','anthropic']);
         assert.equal(denied.code, 3);
         assert.doesNotMatch(denied.out + denied.err, /token=secret|user:secret/);
       }
-      assert.deepEqual(requests, ['/provider', '/provider', '/provider']);
+      assert.ok(requests.includes('/api/provider'));
+      assert.ok(requests.includes('/api/model'));
+      assert.ok(requests.includes('/provider'));
+      await writeCli(dir, 'opencode', '--model --agent provider/model#variant');
+      connected = ['anthropic']; mode = 'v2'; activation = 'enabled'; modelEnabled = true;
+      const currentCli = await execute(args);
+      assert.equal(currentCli.code, 0, currentCli.out + currentCli.err);
+      parsedProfile = JSON.parse(await readFile(join(dir, 'profiles.json'), 'utf8'));
+      const currentArgs = nativeHarnessArguments(parsedProfile.profiles['opencode-frontier-auto']);
+      assert.ok(currentArgs.includes('{model}#{reasoningEffort}'));
+      assert.ok(!currentArgs.includes('--variant'));
     });
   } finally { await new Promise(close => server.close(close)); }
 });

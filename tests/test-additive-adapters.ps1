@@ -28,8 +28,16 @@ function global:claude { $global:LASTEXITCODE = 0; 'fixture-cli 1.0' }
 function global:copilot { $global:LASTEXITCODE = 0; 'fixture-cli 1.0' }
 function global:opencode { $global:LASTEXITCODE = 0; 'fixture-cli 1.0' }
 function Invoke-TestResolver {
-    param([string] $Path, [string] $Family, [string] $Action, [string] $Fixture, [string] $Config)
-    $text = & $Path -Action $Action -Harness $Family -DiscoveryFixture $Fixture -ConfigPath $Config -OutputFormat Json
+    param(
+        [string] $Path, [string] $Family, [string] $Action, [string] $Fixture, [string] $Config,
+        [string] $FrontierModel = '', [string] $FastModel = ''
+    )
+    $arguments = @{Action=$Action;Harness=$Family;DiscoveryFixture=$Fixture;ConfigPath=$Config;OutputFormat='Json'}
+    if ($Path -ceq $resolver) {
+        $arguments.FrontierModel = $FrontierModel
+        $arguments.FastModel = $FastModel
+    }
+    $text = & $Path @arguments
     $code = $LASTEXITCODE
     return @{ code = $code; result = ($text -join "`n" | ConvertFrom-Json -AsHashtable) }
 }
@@ -71,6 +79,27 @@ try {
         Assert-Adapter ($before.code -eq 3 -and $after.code -eq 3 -and $before.result.reason -ceq $after.result.reason) "$family ambiguity behavior changed."
         Assert-Adapter ((Get-FileHash $config).Hash -ceq $digest) "$family blocked refresh wrote profile."
     }
+    $currentAgyModels = @(
+        'gemini-4-argon-medium','gemini-4-argon-high','gemini-4-argon-low',
+        'gemini-3.8-flash-high','gemini-3.8-flash-medium','gemini-3.8-flash-low',
+        'claude-opus-5-5-low','claude-opus-5-5-medium','claude-opus-5-5-high',
+        'claude-sonnet-5-5-low','claude-sonnet-5-5-medium','claude-sonnet-5-5-high',
+        'gpt-oss-120b-medium'
+    ) | ForEach-Object {
+        @{
+            id=$_; model=$_; displayName=$_; description='Current agy fixture'; hidden=$false; isDefault=$false
+            defaultReasoningEffort='medium'; supportedReasoningEfforts=@(
+                @{reasoningEffort='low';description='Low'}, @{reasoningEffort='medium';description='Medium'},
+                @{reasoningEffort='high';description='High'}
+            )
+        }
+    }
+    $currentAgyFixture = Write-TestFixture @{models=@($currentAgyModels)}
+    $currentAgy = Invoke-TestResolver $resolver 'Antigravity' 'Refresh' $currentAgyFixture (Join-Path $temporary 'Antigravity-current.json')
+    $currentAgyFrontier = @($currentAgy.result.roles | Where-Object { $_.role -eq 'frontier-reasoning' })
+    $currentAgyFast = @($currentAgy.result.roles | Where-Object { $_.role -eq 'fast-mechanical' })
+    Assert-Adapter ($currentAgy.code -eq 0 -and $currentAgyFrontier[0].model -ceq 'claude-opus-5-5-high') 'Current agy Opus high frontier was not selected.'
+    Assert-Adapter ($currentAgyFast[0].model -ceq 'gemini-3.8-flash-medium') 'Current agy Flash medium fast model was not selected.'
     foreach ($family in @('Claude','Copilot','OpenCode')) {
         $frontier = @{ value='opus'; id='claude-opus-99'; supportsEffort=$true; supportedEffortLevels=@('high','medium'); policy=@{state='enabled'}; capabilities=@{supports=@{reasoningEffort=$true}; reasoning=$true}; supportedReasoningEfforts=@('high','medium'); variants=@{high=@{}; medium=@{}} }
         $fast = @{ value='haiku'; id='claude-haiku-99'; supportsEffort=$false; policy=@{state='enabled'}; capabilities=@{supports=@{reasoningEffort=$false}; reasoning=$false} }
@@ -87,9 +116,24 @@ try {
         foreach ($runnerProfileData in $profileData.profiles.Values) {
             Assert-Adapter ($runnerProfileData.executable -ceq 'pwsh') "$family profile bypasses the result adapter."
             Assert-Adapter ('{outputFile}' -cin $runnerProfileData.arguments) "$family profile lacks the runner result path."
+            Assert-Adapter ('-HarnessArgumentsJson' -cin $runnerProfileData.arguments) "$family profile lacks an unambiguous JSON argument transport."
+            $jsonIndex = [Array]::IndexOf([object[]]$runnerProfileData.arguments, '-HarnessArgumentsJson')
+            $decodedHarnessArguments = @($runnerProfileData.arguments[$jsonIndex + 1] | ConvertFrom-Json)
+            Assert-Adapter ($decodedHarnessArguments.Count -gt 0) "$family JSON argument transport is empty."
+            Assert-Adapter (($decodedHarnessArguments -join "`n") -match 'Do not write the result file yourself; project-file writes remain governed') "$family result instruction must not prohibit authorized project writes."
             Assert-Adapter (@($runnerProfileData.arguments | Where-Object { $_ -like '*invoke-harness-with-result.ps1' }).Count -eq 1) "$family profile lacks the structured-output transport."
             Assert-Adapter ('.specify/presets/model-routing-governance/scripts/adapters/invoke-harness-with-result.ps1' -cin $runnerProfileData.arguments) "$family profile stores a machine-specific adapter path."
             Assert-Adapter ($runnerProfileData.preflight.executable -ceq $family.ToLowerInvariant()) "$family preflight no longer invokes the harness directly."
+            if ($family -ceq 'Claude') {
+                $mcpIndex = [Array]::IndexOf([object[]]$runnerProfileData.preflight.arguments, '--mcp-config')
+                Assert-Adapter ($mcpIndex -ge 0 -and $runnerProfileData.preflight.arguments[$mcpIndex + 2] -ceq '--') 'Claude preflight must terminate variadic MCP arguments before the prompt.'
+            }
+            if ($family -ceq 'Copilot') {
+                Assert-Adapter ('--silent' -cin $runnerProfileData.preflight.arguments) 'Copilot preflight must keep diagnostic banners off standard output.'
+                Assert-Adapter ('--silent' -cin $decodedHarnessArguments) 'Copilot execution must return only the agent response on standard output.'
+                Assert-Adapter ('CopilotJsonl' -cin $runnerProfileData.arguments) 'Copilot profile must select the JSONL result protocol.'
+                Assert-Adapter ('--output-format' -cin $decodedHarnessArguments -and 'json' -cin $decodedHarnessArguments) 'Copilot execution must request JSONL output.'
+            }
         }
         $fastProfile = $profileData.profiles["$($family.ToLowerInvariant())-fast-auto"]
         Assert-Adapter ($fastProfile.reasoningEffort -ceq 'default' -and '{reasoningEffort}' -cnotin $fastProfile.arguments) "$family invented effort."
@@ -110,6 +154,7 @@ try {
                 duplicate { $copy.models += $copy.models[0].Clone() }
                 ambiguousVersions {
                     $copy.models[0].value = 'claude-opus-98'
+                    $copy.models[0].id = 'claude-opus-98'
                     $other = $copy.models[0].Clone()
                     $other.value='claude-opus-97'; $other.id='claude-opus-97'
                     $copy.models += $other
@@ -141,7 +186,9 @@ try {
             $copy.models[1].capabilities.reasoning=$true
             $copy.models[1].variants=@{}; $copy.models[1].variants[$effort]=@{}
             $fixture = Write-TestFixture $copy
-            $positive = Invoke-TestResolver $resolver $family Refresh $fixture $config
+            $frontierChoice = if ($family -eq 'Claude') { 'opus' } elseif ($family -eq 'OpenCode') { 'anthropic/claude-opus-99' } else { 'claude-opus-99' }
+            $fastChoice = if ($family -eq 'Claude') { 'haiku' } elseif ($family -eq 'OpenCode') { 'anthropic/claude-haiku-99' } else { 'claude-haiku-99' }
+            $positive = Invoke-TestResolver $resolver $family Refresh $fixture $config $frontierChoice $fastChoice
             $role = @($positive.result.roles | Where-Object { $_.role -ceq 'fast-mechanical' })
             Assert-Adapter ($positive.code -eq 0 -and $role[0].reasoningEffort -ceq $effort) "$family $effort was not preserved."
         }

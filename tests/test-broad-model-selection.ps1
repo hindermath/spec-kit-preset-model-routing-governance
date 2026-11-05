@@ -36,11 +36,16 @@ function New-TestModel {
     }
 }
 function Invoke-SelectionTest {
-    param([string] $Family, [object[]] $Models, [string] $Frontier = '', [string] $Fast = '', [string] $Action = 'Refresh')
+    param(
+        [string] $Family, [object[]] $Models, [string] $Frontier = '', [string] $Fast = '',
+        [string] $Action = 'Refresh', [bool] $UseExisting = $false
+    )
     $fixture = Join-Path $temporary 'inventory.json'
     @{models=$Models;provider='fixture-provider'} | ConvertTo-Json -Depth 30 | Set-Content $fixture
+    $config = Join-Path $temporary "$Family.json"
+    if (-not $UseExisting -and (Test-Path $config)) { Remove-Item -LiteralPath $config -Force }
     $arguments = @{
-        Action=$Action; Harness=$Family; DiscoveryFixture=$fixture; ConfigPath=(Join-Path $temporary "$Family.json")
+        Action=$Action; Harness=$Family; DiscoveryFixture=$fixture; ConfigPath=$config
         OutputFormat='Json'; FrontierModel=$Frontier; FastModel=$Fast
     }
     $text = & (Join-Path $root 'scripts/resolve-model-routing.ps1') @arguments
@@ -95,8 +100,9 @@ try {
         Assert-Selection ($reply.code -eq 0 -and $reply.result.roles[0].model -ceq (Get-TestId $family 'gpt-99')) "$family preferred ineligible Opus over capable GPT: $($reply | ConvertTo-Json -Depth 10 -Compress)"
         $twoVersions = @((New-TestModel 'gpt-98'), (New-TestModel 'gpt-99'), (New-TestModel 'gpt-99-mini' @()))
         $config = Join-Path $temporary "$family.json"
+        @{schemaVersion='1.0';marker='preserve-on-ambiguity'} | ConvertTo-Json | Set-Content $config
         $digest = (Get-FileHash $config).Hash
-        $blocked = Invoke-SelectionTest $family $twoVersions
+        $blocked = Invoke-SelectionTest $family $twoVersions '' '' 'Refresh' $true
         Assert-Selection ($blocked.code -eq 3 -and $blocked.result.reason.Contains('-FrontierModel')) "$family silently guessed newest GPT."
         Assert-Selection ((Get-FileHash $config).Hash -ceq $digest) "$family ambiguous refresh changed profile."
         $reply = Invoke-SelectionTest $family $twoVersions (Get-TestId $family 'gpt-98')
@@ -111,7 +117,7 @@ try {
         Assert-Selection ($reply.code -eq 0 -and $reply.result.roles[0].model -ceq (Get-TestId $family 'custom-b')) "$family exact custom models blocked by family allowlist."
         foreach ($bad in @('not-discovered','--unsafe')) {
             $digest = (Get-FileHash $config).Hash
-            $reply = Invoke-SelectionTest $family $unknownPair $bad
+            $reply = Invoke-SelectionTest $family $unknownPair $bad '' 'Refresh' $true
             Assert-Selection ($reply.code -eq 3 -and (Get-FileHash $config).Hash -ceq $digest) "$family invalid override wrote profile."
         }
         $reply = Invoke-SelectionTest $family @((New-TestModel 'gpt-99-mini' @())) (Get-TestId $family 'gpt-99-mini')
@@ -129,13 +135,93 @@ try {
         $profileData.selectionPolicySha256 = 'stale'
         $profileData | ConvertTo-Json -Depth 30 | Set-Content $config
         $digest = (Get-FileHash $config).Hash
-        $reply = Invoke-SelectionTest $family @((New-TestModel 'gpt-99')) '' '' 'Status'
+        $reply = Invoke-SelectionTest $family @((New-TestModel 'gpt-99')) '' '' 'Status' $true
         Assert-Selection ($reply.code -eq 2 -and (Get-FileHash $config).Hash -ceq $digest) "$family policy drift not detected read-only."
         $profileData.Remove('selectionPolicySha256')
         $profileData | ConvertTo-Json -Depth 30 | Set-Content $config
         $digest = (Get-FileHash $config).Hash
-        $reply = Invoke-SelectionTest $family @((New-TestModel 'gpt-99')) '' '' 'Status'
+        $reply = Invoke-SelectionTest $family @((New-TestModel 'gpt-99')) '' '' 'Status' $true
         Assert-Selection ($reply.code -eq 2 -and (Get-FileHash $config).Hash -ceq $digest) "$family older profile needs explicit policy refresh."
+
+        # A deliberate first selection is reusable only while the exact catalog
+        # evidence and the stored reasoning levels remain valid.
+        $reuseModels = @(
+            (New-TestModel 'claude-opus-98'), (New-TestModel 'claude-opus-99'),
+            (New-TestModel 'claude-haiku-98' @('medium','low')), (New-TestModel 'claude-haiku-99' @('medium','low'))
+        )
+        $savedFrontier = Get-TestId $family 'claude-opus-99'
+        $savedFast = Get-TestId $family 'claude-haiku-99'
+        $alternateFrontier = Get-TestId $family 'claude-opus-98'
+        $alternateFast = Get-TestId $family 'claude-haiku-98'
+        $reply = Invoke-SelectionTest $family $reuseModels $savedFrontier $savedFast
+        Assert-Selection ($reply.code -eq 0) "$family could not seed a deliberate selection."
+        $savedBytes = [Convert]::ToBase64String([IO.File]::ReadAllBytes($config))
+
+        $reply = Invoke-SelectionTest $family $reuseModels '' '' 'Status' $true
+        Assert-Selection ($reply.code -eq 0 -and $reply.result.status -ceq 'Aligned') "$family did not reuse the stored selection for Status."
+        Assert-Selection ([Convert]::ToBase64String([IO.File]::ReadAllBytes($config)) -ceq $savedBytes) "$family Status changed the stored profile."
+        $reply = Invoke-SelectionTest $family $reuseModels '' '' 'Refresh' $true
+        Assert-Selection ($reply.code -eq 0 -and $reply.result.status -ceq 'Aligned') "$family parameterless Refresh was not aligned."
+        Assert-Selection ([Convert]::ToBase64String([IO.File]::ReadAllBytes($config)) -ceq $savedBytes) "$family parameterless Refresh was not byte-identical."
+
+        $reply = Invoke-SelectionTest $family $reuseModels $alternateFrontier '' 'Status' $true
+        $fastRole = @($reply.result.roles | Where-Object { $_.role -ceq 'fast-mechanical' })[0]
+        Assert-Selection ($reply.code -eq 2 -and $reply.result.roles[0].model -ceq $alternateFrontier -and $fastRole.model -ceq $savedFast) "$family did not combine an explicit frontier with the stored fast model."
+        Assert-Selection ([Convert]::ToBase64String([IO.File]::ReadAllBytes($config)) -ceq $savedBytes) "$family partial Status changed the profile."
+        $reply = Invoke-SelectionTest $family $reuseModels $alternateFrontier '' 'Refresh' $true
+        Assert-Selection ($reply.code -eq 0) "$family could not refresh an explicit frontier with the stored fast model."
+        $partialBytes = [Convert]::ToBase64String([IO.File]::ReadAllBytes($config))
+        $reply = Invoke-SelectionTest $family $reuseModels '' $alternateFast 'Status' $true
+        Assert-Selection ($reply.code -eq 2 -and $reply.result.roles[0].model -ceq $alternateFrontier -and @($reply.result.roles | Where-Object { $_.role -ceq 'fast-mechanical' })[0].model -ceq $alternateFast) "$family explicit fast model did not override the stored value."
+        Assert-Selection ([Convert]::ToBase64String([IO.File]::ReadAllBytes($config)) -ceq $partialBytes) "$family explicit-precedence Status changed the profile."
+
+        # An explicit replacement may repair one stale role while retaining the
+        # other stored role. Without that replacement the resolver must block.
+        $driftModels = @((New-TestModel 'claude-opus-99'), (New-TestModel 'claude-haiku-99' @('medium','low')))
+        $reply = Invoke-SelectionTest $family $driftModels '' '' 'Status' $true
+        Assert-Selection ($reply.code -eq 3) "$family silently replaced a missing stored frontier model."
+        Assert-Selection ([Convert]::ToBase64String([IO.File]::ReadAllBytes($config)) -ceq $partialBytes) "$family catalog-drift blocker changed the profile."
+        $reply = Invoke-SelectionTest $family $driftModels $savedFrontier '' 'Status' $true
+        Assert-Selection ($reply.code -eq 2 -and $reply.result.roles[0].model -ceq $savedFrontier) "$family explicit frontier could not replace a stale stored model."
+
+        $reply = Invoke-SelectionTest $family $reuseModels $savedFrontier $savedFast
+        $savedBytes = [Convert]::ToBase64String([IO.File]::ReadAllBytes($config))
+        $reducedReasoning = @(
+            (New-TestModel 'claude-opus-99' @('medium','low')),
+            (New-TestModel 'claude-haiku-99' @('medium','low'))
+        )
+        $reply = Invoke-SelectionTest $family $reducedReasoning '' '' 'Status' $true
+        Assert-Selection ($reply.code -eq 3) "$family accepted a stored frontier reasoning level after capability drift."
+        Assert-Selection ([Convert]::ToBase64String([IO.File]::ReadAllBytes($config)) -ceq $savedBytes) "$family reasoning-drift blocker changed the profile."
+
+        $duplicateCatalog = @(
+            (New-TestModel 'claude-opus-99'), (New-TestModel 'claude-opus-99'),
+            (New-TestModel 'claude-haiku-99' @('medium','low'))
+        )
+        $reply = Invoke-SelectionTest $family $duplicateCatalog '' '' 'Status' $true
+        Assert-Selection ($reply.code -eq 3) "$family accepted duplicate discovered model IDs."
+        Assert-Selection ([Convert]::ToBase64String([IO.File]::ReadAllBytes($config)) -ceq $savedBytes) "$family duplicate-ID blocker changed the profile."
+
+        if ($family -eq 'Copilot') {
+            $disabledSaved = New-TestModel 'claude-opus-99'; $disabledSaved.policy.state='disabled'
+            $reply = Invoke-SelectionTest $family @($disabledSaved,(New-TestModel 'claude-haiku-99' @('medium','low'))) '' '' 'Status' $true
+            Assert-Selection ($reply.code -eq 3) 'Copilot reused a policy-disabled stored model.'
+            Assert-Selection ([Convert]::ToBase64String([IO.File]::ReadAllBytes($config)) -ceq $savedBytes) 'Copilot policy blocker changed the profile.'
+        }
+
+        $profileData = Get-Content $config -Raw | ConvertFrom-Json -AsHashtable
+        $profileData.profiles["$($family.ToLowerInvariant())-implementation-auto"].model = Get-TestId $family 'claude-opus-98'
+        $profileData | ConvertTo-Json -Depth 30 | Set-Content $config
+        $inconsistentBytes = [Convert]::ToBase64String([IO.File]::ReadAllBytes($config))
+        $reply = Invoke-SelectionTest $family $reuseModels '' '' 'Status' $true
+        Assert-Selection ($reply.code -eq 3) "$family accepted inconsistent stored frontier profiles."
+        Assert-Selection ([Convert]::ToBase64String([IO.File]::ReadAllBytes($config)) -ceq $inconsistentBytes) "$family inconsistent-profile blocker changed the file."
+
+        [IO.File]::WriteAllText($config, '{broken-profile')
+        $brokenBytes = [Convert]::ToBase64String([IO.File]::ReadAllBytes($config))
+        $reply = Invoke-SelectionTest $family $reuseModels '' '' 'Status' $true
+        Assert-Selection ($reply.code -eq 3) "$family accepted a damaged stored profile."
+        Assert-Selection ([Convert]::ToBase64String([IO.File]::ReadAllBytes($config)) -ceq $brokenBytes) "$family damaged-profile blocker changed the file."
     }
     Write-Output "PASS: $script:checks broad-selection assertions; offline."
 } finally {

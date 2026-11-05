@@ -279,8 +279,15 @@ function Test-MRReasoning {
 }
 
 function Select-MRModels {
-    param([Parameter(Mandatory)][string] $Family, [Parameter(Mandatory)][object[]] $Models)
-    if ($Family -in @('Claude', 'Copilot', 'OpenCode')) { return Select-MRDiscoveredModel $Family $Models }
+    param(
+        [Parameter(Mandatory)][string] $Family,
+        [Parameter(Mandatory)][object[]] $Models,
+        [string] $EffectiveFrontierModel = '',
+        [string] $EffectiveFastModel = ''
+    )
+    if ($Family -in @('Claude', 'Copilot', 'OpenCode')) {
+        return Select-MRDiscoveredModel $Family $Models $EffectiveFrontierModel $EffectiveFastModel
+    }
     Assert-MRCondition ($Models.Count -gt 0) "Keine Modelle fuer $Family erkannt."
     if ($Family -eq 'Codex') {
         $frontier = @($Models | Where-Object { [bool] $_.isDefault })
@@ -296,7 +303,13 @@ function Select-MRModels {
     } elseif ($Family -eq 'Antigravity') {
         $frontier = @($Models | Where-Object { [string] $_.model -match '^claude-opus-.+-thinking$' })
         if ($frontier.Count -ne 1) {
+            $frontier = @($Models | Where-Object { [string] $_.model -match '^claude-opus-.+-high$' })
+        }
+        if ($frontier.Count -ne 1) {
             $frontier = @($Models | Where-Object { [string] $_.model -match '^gemini-.+-pro-high$' })
+        }
+        if ($frontier.Count -ne 1) {
+            $frontier = @($Models | Where-Object { [string] $_.model -match '^gemini-.+-argon-high$' })
         }
         $fast = @($Models | Where-Object { [string] $_.model -match '^gemini-.+-flash-medium$' } | Select-Object -First 1)
         Assert-MRCondition ($frontier.Count -eq 1) 'Antigravity Frontier-Zuordnung ist nicht eindeutig.'
@@ -310,6 +323,45 @@ function Select-MRModels {
     $fastEffort = if (Test-MRReasoning $fastModel 'medium') { 'medium' } elseif (Test-MRReasoning $fastModel 'low') { 'low' } else { '' }
     Assert-MRCondition (-not [string]::IsNullOrWhiteSpace($fastEffort)) 'Fast-Modell besitzt keine sichere Reasoning-Stufe.'
     return [ordered]@{ frontier = $frontierModel; fast = $fastModel; frontierEffort = 'high'; fastEffort = $fastEffort }
+}
+
+function Get-MRStoredSelection {
+    param([Parameter(Mandatory)][string] $Family, [Parameter(Mandatory)][string] $Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
+    $existing = Read-MRJson $Path
+    if ([string] $existing.schemaVersion -cne '2.0' -or
+        $existing.harness -isnot [hashtable] -or
+        [string] $existing.harness.family -cne $Family) { return $null }
+    Assert-MRCondition ($existing.profiles -is [hashtable]) "$Family stored profile set is missing or invalid."
+    $prefix = $Family.ToLowerInvariant()
+    $expected = [ordered]@{
+        "${prefix}-frontier-auto" = 'frontier-reasoning'
+        "${prefix}-implementation-auto" = 'long-running-implementation'
+        "${prefix}-review-auto" = 'coding-review'
+        "${prefix}-fast-auto" = 'fast-mechanical'
+    }
+    $profiles = [Collections.Generic.List[hashtable]]::new()
+    foreach ($entry in $expected.GetEnumerator()) {
+        Assert-MRCondition ($existing.profiles.ContainsKey($entry.Key) -and
+            $existing.profiles[$entry.Key] -is [hashtable]) "$Family stored profile '$($entry.Key)' is missing or invalid."
+        $storedProfile = [hashtable] $existing.profiles[$entry.Key]
+        Assert-MRCondition ([string] $storedProfile.routingRole -ceq [string] $entry.Value -and
+            [string] $storedProfile.agentFamily -ceq $Family -and
+            -not [string]::IsNullOrWhiteSpace([string] $storedProfile.model) -and
+            -not [string]::IsNullOrWhiteSpace([string] $storedProfile.reasoningEffort)) "$Family stored profile '$($entry.Key)' is inconsistent."
+        $profiles.Add($storedProfile)
+    }
+    $frontierProfiles = @($profiles | Where-Object { [string] $_.routingRole -cne 'fast-mechanical' })
+    $frontierModels = @($frontierProfiles | ForEach-Object { [string] $_.model } | Sort-Object -Unique -CaseSensitive)
+    $frontierEfforts = @($frontierProfiles | ForEach-Object { [string] $_.reasoningEffort } | Sort-Object -Unique -CaseSensitive)
+    Assert-MRCondition ($frontierModels.Count -eq 1 -and $frontierEfforts.Count -eq 1) "$Family stored frontier profiles disagree."
+    $fastProfile = [hashtable] @($profiles | Where-Object { [string] $_.routingRole -ceq 'fast-mechanical' })[0]
+    return [ordered]@{
+        frontier = $frontierModels[0]
+        frontierEffort = $frontierEfforts[0]
+        fast = [string] $fastProfile.model
+        fastEffort = [string] $fastProfile.reasoningEffort
+    }
 }
 
 function New-MRProfile {
@@ -402,7 +454,18 @@ try {
         $models = @(Get-MRModels $resolvedHarness $DiscoveryFixture)
     }
     Assert-MRCondition ($isNewHarness -or (-not $FrontierModel -and -not $FastModel)) 'Exact model overrides apply only to Claude, Copilot and OpenCode.'
-    $selection = Select-MRModels $resolvedHarness $models
+    $storedSelection = if ($isNewHarness) { Get-MRStoredSelection $resolvedHarness $ConfigPath } else { $null }
+    $usesStoredFrontier = $isNewHarness -and -not $FrontierModel -and $null -ne $storedSelection
+    $usesStoredFast = $isNewHarness -and -not $FastModel -and $null -ne $storedSelection
+    $effectiveFrontierModel = if ($FrontierModel) { $FrontierModel } elseif ($usesStoredFrontier) { [string] $storedSelection.frontier } else { '' }
+    $effectiveFastModel = if ($FastModel) { $FastModel } elseif ($usesStoredFast) { [string] $storedSelection.fast } else { '' }
+    $selection = Select-MRModels $resolvedHarness $models $effectiveFrontierModel $effectiveFastModel
+    if ($usesStoredFrontier) {
+        Assert-MRCondition ([string] $selection.frontierEffort -ceq [string] $storedSelection.frontierEffort) "$resolvedHarness stored frontier reasoning effort is no longer supported."
+    }
+    if ($usesStoredFast) {
+        Assert-MRCondition ([string] $selection.fastEffort -ceq [string] $storedSelection.fastEffort) "$resolvedHarness stored fast reasoning effort is no longer supported."
+    }
     $candidate = New-MRConfig $resolvedHarness $version $mode $selection $catalogHash
     if ($isNewHarness) {
         $candidate.generatedBy = 'model-routing-governance/0.2.0'
@@ -436,7 +499,8 @@ try {
         }
     } else { 'RefreshRequired' }
     if ($Action -eq 'Refresh') {
-        if ($PSCmdlet.ShouldProcess($ConfigPath, "Write local $resolvedHarness model routing profile")) {
+        $skipAlignedNewHarnessWrite = $isNewHarness -and $status -eq 'Aligned'
+        if (-not $skipAlignedNewHarnessWrite -and $PSCmdlet.ShouldProcess($ConfigPath, "Write local $resolvedHarness model routing profile")) {
             Write-MRJsonAtomic $ConfigPath $candidate
             $status = 'Aligned'
         }
