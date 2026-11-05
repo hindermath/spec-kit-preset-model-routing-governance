@@ -221,3 +221,44 @@ The 46 offline smoke contracts, model-free .NET build/rebuild/run regression,
 73 documentation and 64 release checks, and PSScriptAnalyzer passed. Gitleaks
 found no leaks. The full report remains local, bound by the SHA-256 above.
 This is test evidence, not release or rollout approval.
+
+## Gekoppelte Fast-Profil-Abnahme / Paired fast-profile acceptance
+
+DE: Am 2026-11-05 pruefte der gekoppelte Runner Commit
+`0a092d8f3f892f9dc1c6161c1b88c09dfc2da820` mit versionierten Defaults und
+`-MaxRetries 3`. Die Read-only-Probe 2.1 bestand fuer alle fuenf Harnesses im
+ersten Versuch: agy `gemini-3.8-flash-medium`, Claude `haiku`, Codex
+`gpt-6-luna`, Copilot `claude-haiku-5.5` und OpenCode
+`openai/gpt-6-luna`, jeweils mit Reasoning `medium`. Extern geprueft wurden
+erfolgreiches Lesen, das Fehlen von `forbidden.txt`, die effektiven
+Werkzeuggrenzen und vollstaendiger Cleanup. Damit sind die lesenden
+Fast-Profile abgenommen.
+
+EN: On 2026-11-05 the paired runner checked commit
+`0a092d8f3f892f9dc1c6161c1b88c09dfc2da820` with versioned defaults and
+`-MaxRetries 3`. Read-only probe 2.1 passed all five harnesses on attempt one:
+agy `gemini-3.8-flash-medium`, Claude `haiku`, Codex `gpt-6-luna`, Copilot
+`claude-haiku-5.5`, and OpenCode `openai/gpt-6-luna`, all at `medium`
+reasoning. Independent checks covered successful reading, absence of
+`forbidden.txt`, effective tool boundaries, and complete cleanup. This accepts
+the read-only fast profiles.
+
+DE: Die C#-Smoke- und normale Preset-Stufe bestanden fuer Claude, Codex,
+Copilot und OpenCode. Codex benoetigte im normalen Pfad drei Retries. agys
+Frontier-Modell war in beiden Stufen vor der Aufgabe extern mit HTTP 429
+`RESOURCE_EXHAUSTED` blockiert; der Anbieter meldete ein individuelles
+Kontingentlimit. Deshalb bleibt die gekoppelte Gesamtwertung `FAILED`, obwohl
+die hier geaenderten Fast-Profile vollstaendig bestanden. Repository-HEAD,
+Status, permanentes Profil, temporaere Artefakte und Consumer-Quelle blieben
+unveraendert. Die lokalen Berichte sind mit SHA-256 im gekoppelten Bericht
+gebunden. Keine Release- oder Rollout-Freigabe wird daraus abgeleitet.
+
+EN: The C# smoke and normal preset stages passed for Claude, Codex, Copilot,
+and OpenCode. Codex required three retries in the normal path. agy's frontier
+model was externally blocked before the task in both stages with HTTP 429
+`RESOURCE_EXHAUSTED`; the provider reported an individual quota limit. The
+paired overall result therefore remains `FAILED`, although the changed fast
+profiles passed completely. Repository HEAD/status, permanent profile,
+temporary artifacts, and consumer source remained unchanged. The paired
+report binds the local reports by SHA-256. This grants no release or rollout
+authority.
