@@ -310,7 +310,7 @@ function Invoke-MRSmokeHarnessAttempt {
             }
             if (Test-Path (Join-Path $worktree 'forbidden.txt')) { throw 'Read-only profile created forbidden.txt.' }
             if (-not(Test-MRSmokeReadOnlyAttestation $probe -ToolBoundary $toolBoundary)) { throw 'Read-only probe did not prove read plus a denied attempt or independently verified withheld write tools.' }
-            $result.readOnlyEvidence=@{fileAbsent=$true;toolBoundary=$toolBoundary;hostWriteDenied=$hostWriteDenied;writeDenied=$probe.writeDenied;writeUnavailable=$probe.writeUnavailable;writeAttempted=$probe.writeAttempted;probeVersion='2.1';boundary='File absence and tool-filter configuration externally checked; agy denial from host stderr after separate read, other tool-attempt details agent-attested. Not an OS-sandbox proof.'}
+            $result.readOnlyEvidence=@{fileAbsent=$true;toolBoundary=$toolBoundary;hostWriteDenied=$hostWriteDenied;writeDenied=$probe.writeDenied;writeUnavailable=$probe.writeUnavailable;writeAttempted=$probe.writeAttempted;probeVersion='2.1';boundary='File absence and tool-filter configuration externally checked; agy denial from CLI output after separate read, other tool-attempt details agent-attested. Not an OS-sandbox proof.'}
             $result.output='READ_ONLY_OK;WRITE_DENIED';$result.status='PASS'
             return $result
         }
