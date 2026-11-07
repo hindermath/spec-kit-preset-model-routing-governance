@@ -173,6 +173,9 @@ function Invoke-MROpenCodeDiscovery {
     Assert-MRCondition ([uri]::TryCreate($OpenCodeServerUrl, [UriKind]::Absolute, [ref]$uri)) 'OpenCode server URL missing or invalid.'
     Assert-MRCondition ($uri.Scheme -ceq 'http' -and $uri.Host -in @('127.0.0.1', '[::1]') -and
         $uri.AbsolutePath -ceq '/' -and -not $uri.UserInfo -and -not $uri.Query -and -not $uri.Fragment) 'OpenCode requires an explicit HTTP loopback origin without credentials/path/query.'
+    if ($env:OPENCODE_SERVER_PASSWORD) {
+        Assert-MRCondition $TrustOpenCodeLoopbackEndpoint 'OpenCode HTTP loopback password requires -TrustOpenCodeLoopbackEndpoint for this invocation.'
+    }
     $handler = [Net.Http.HttpClientHandler]::new()
     $handler.AllowAutoRedirect = $false
     $handler.UseProxy = $false

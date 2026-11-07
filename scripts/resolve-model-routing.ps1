@@ -41,6 +41,12 @@
     DE: Ausdruecklich gewaehlter verbundener OpenCode-Provider.
     EN: Explicitly selected connected OpenCode provider.
 
+.PARAMETER TrustOpenCodeLoopbackEndpoint
+    DE: Gibt die Uebertragung des optionalen Server-Passworts an den ausdruecklich
+    gewaehlten HTTP-Loopback-Endpunkt fuer diesen Aufruf frei. Keine Serveridentitaet.
+    EN: Allows sending the optional server password to the explicitly selected
+    HTTP loopback endpoint for this invocation. This does not authenticate it.
+
 .PARAMETER FrontierModel
     DE: Optionale exakte Auswahl aus der Discovery fuer die drei anspruchsvollen Rollen.
     EN: Optional exact discovered model for the three demanding roles.
@@ -70,6 +76,7 @@ param(
     [string] $SdkModulePath = '',
     [string] $OpenCodeServerUrl = '',
     [string] $OpenCodeProvider = '',
+    [switch] $TrustOpenCodeLoopbackEndpoint,
     [string] $FrontierModel = '',
     [string] $FastModel = '',
 

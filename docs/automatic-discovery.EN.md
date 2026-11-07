@@ -46,7 +46,11 @@ models and confirmed `variants[]`. If the current API is unavailable or
 returns HTML, only `GET /provider` is tried as a legacy fallback. Unknown
 schemas remain blocked. Optional server credentials come from
 `OPENCODE_SERVER_PASSWORD` and `OPENCODE_SERVER_USERNAME`; the default username
-is `opencode`. Never put credentials in URLs or Git. HTTP responses are limited
+is `opencode`. Never put credentials in URLs or Git.
+With a password set, pass `-TrustOpenCodeLoopbackEndpoint` on each invocation.
+This explicitly trusts the selected local HTTP endpoint; loopback HTTP does
+not authenticate the listening process. No password is sent without this
+choice. Discovery without a password is unchanged. HTTP responses are limited
 to 4 MiB and bounded by timeouts. No cache refresh.
 
 Neither `Status` nor `Refresh` performs model inference. Status writes no
