@@ -31,7 +31,8 @@ function Test-ReleasePreparation {
             ($PackageVersion -ceq '0.2.3' -and $Value.changeKind -ceq 'CanonicalAdapterPath' -and -not [string]::IsNullOrWhiteSpace($Value.authorizationReference)) -or
             ($PackageVersion -ceq '0.2.4' -and $Value.changeKind -ceq 'DiscoveryCompatibility' -and -not [string]::IsNullOrWhiteSpace($Value.authorizationReference)) -or
             ($PackageVersion -ceq '0.2.5' -and $Value.changeKind -ceq 'DocumentationCorrection' -and -not [string]::IsNullOrWhiteSpace($Value.authorizationReference)) -or
-            ($PackageVersion -ceq '0.2.6' -and $Value.changeKind -ceq 'CiExitCodePropagation' -and -not [string]::IsNullOrWhiteSpace($Value.authorizationReference))
+            ($PackageVersion -ceq '0.2.6' -and $Value.changeKind -ceq 'CiExitCodePropagation' -and -not [string]::IsNullOrWhiteSpace($Value.authorizationReference)) -or
+            ($PackageVersion -ceq '0.2.7' -and $Value.changeKind -ceq 'SecurityHardening' -and -not [string]::IsNullOrWhiteSpace($Value.authorizationReference))
         $null = [DateTimeOffset]::Parse([string]$Value.preparedAt, [Globalization.CultureInfo]::InvariantCulture)
         return $testCompatibilityValid -and $Value.schemaVersion -eq 1 -and $Value.presetId -ceq $Id -and
             $Value.packageVersion -ceq $PackageVersion -and
@@ -123,6 +124,7 @@ $fixture = Get-Content (Join-Path $PSScriptRoot 'fixtures/documentation-package.
 $version = $fixture.publicationEvidenceVersion
 $expectedMetadataCorrection = $id -cin @('intake-authoring-governance', 'intake-sequencing-governance') -or
     ($id -ceq 'model-routing-governance' -and $packageVersion -in @('0.2.0','0.2.2','0.2.3','0.2.4'))
+if ($packageVersion -ceq '0.2.7') { $expectedMetadataCorrection = $true }
 Assert-ReleaseStatus ($fixture.version -ceq $packageVersion -and [version]$version -lt [version]$packageVersion) 'explicit earlier publication record, not current-package publication'
 $preparation = Get-Content (Join-Path $root "docs/release-$packageVersion-preparation.json") -Raw | ConvertFrom-Json
 Assert-ReleaseStatus ($preparation.presetId -ceq $id -and $preparation.packageVersion -ceq $packageVersion -and
