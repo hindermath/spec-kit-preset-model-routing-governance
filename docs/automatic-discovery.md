@@ -50,6 +50,11 @@ verfügbar ist oder HTML liefert, wird ausschließlich `GET /provider` als
 Legacy-Fallback geprüft. Unbekannte Schemata bleiben blockiert. Optional übernimmt er
 `OPENCODE_SERVER_PASSWORD` und `OPENCODE_SERVER_USERNAME` aus der Umgebung;
 Standard-Benutzer ist `opencode`. Zugangsdaten niemals in URL oder Git ablegen.
+Mit gesetztem Passwort ist `-TrustOpenCodeLoopbackEndpoint` bei jedem Aufruf
+erforderlich. Damit gibst du den ausgewaehlten lokalen HTTP-Endpunkt bewusst
+frei; HTTP-Loopback bestaetigt nicht die Identitaet des lauschenden Prozesses.
+Ohne diese Freigabe wird kein Passwort gesendet. Ohne Passwort bleibt die
+Erkennung unveraendert.
 HTTP-Antworten sind auf 4 MiB und zeitlich begrenzt. Kein Cache-Refresh.
 
 `Status` und `Refresh` führen keine Modellinferenz aus. Der Resolver schreibt

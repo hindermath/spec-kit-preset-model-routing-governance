@@ -200,7 +200,7 @@ function Invoke-MRSmokeHarnessAttempt {
         if ($family -eq 'Claude') { $common += @('-SdkModulePath',$ClaudeSdk) }
         if ($family -eq 'Copilot') { $common += @('-SdkModulePath',$CopilotSdk) }
         if ($family -eq 'OpenCode') {
-            $common += @('-OpenCodeServerUrl',"http://127.0.0.1:$($OpenCodeServer.port)/",'-OpenCodeProvider',[string]$Harness.provider)
+            $common += @('-OpenCodeServerUrl',"http://127.0.0.1:$($OpenCodeServer.port)/",'-OpenCodeProvider',[string]$Harness.provider,'-TrustOpenCodeLoopbackEndpoint')
             $resolverEnvironment = @{
                 OPENCODE_SERVER_USERNAME=$OpenCodeServer.credential.UserName
                 OPENCODE_SERVER_PASSWORD=$OpenCodeServer.credential.GetNetworkCredential().Password

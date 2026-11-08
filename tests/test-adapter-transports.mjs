@@ -31,9 +31,9 @@ async function withFixture(run) {
     for (const cli of ['claude', 'copilot', 'opencode']) {
       await writeCli(dir, cli, flags, cli === 'claude');
     }
-    const execute = args => new Promise((resolveResult, reject) => {
+    const execute = (args, environment = {}) => new Promise((resolveResult, reject) => {
       const child = spawn('pwsh', ['-NoProfile', '-File', resolver, ...args, '-OutputFormat', 'Json', '-ConfigPath', join(dir, 'profiles.json')], {
-        env: { ...process.env, PATH: dir + delimiter + process.env.PATH },
+        env: { ...process.env, OPENCODE_SERVER_PASSWORD: '', ...environment, PATH: dir + delimiter + process.env.PATH },
       });
       let out = ''; let err = '';
       child.stdout.on('data', x => { out += x; }); child.stderr.on('data', x => { err += x; });
@@ -105,6 +105,7 @@ test('actual Node/PowerShell bridge transports Claude and Copilot metadata witho
 
 test('OpenCode supports current v2 and legacy provider metadata without weakening filters', async () => {
   const requests = [];
+  const authorizations = [];
   let mode = 'v2';
   let connected = ['anthropic'];
   let redirect = false;
@@ -112,6 +113,7 @@ test('OpenCode supports current v2 and legacy provider metadata without weakenin
   let modelEnabled = true;
   const server = createServer((req, res) => {
     requests.push(req.url);
+    authorizations.push(req.headers.authorization ?? '');
     if (redirect) { res.writeHead(302, { Location: 'http://example.invalid/provider' }); res.end(); return; }
     if (mode === 'legacy' && req.url === '/api/provider') {
       res.setHeader('Content-Type', 'text/html'); res.end('<!doctype html>'); return;
@@ -167,8 +169,16 @@ test('OpenCode supports current v2 and legacy provider metadata without weakenin
       assert.ok(requests.includes('/api/provider'));
       assert.ok(requests.includes('/api/model'));
       assert.ok(requests.includes('/provider'));
-      await writeCli(dir, 'opencode', '--model --agent provider/model#variant');
       connected = ['anthropic']; mode = 'v2'; activation = 'enabled'; modelEnabled = true;
+      const requestCount = requests.length;
+      const passwordEnvironment = { OPENCODE_SERVER_PASSWORD: 'fixture-secret' };
+      const untrusted = await execute(args, passwordEnvironment);
+      assert.equal(untrusted.code, 3);
+      assert.equal(requests.length, requestCount, 'untrusted listener received a credential-bearing request');
+      const trusted = await execute([...args, '-TrustOpenCodeLoopbackEndpoint'], passwordEnvironment);
+      assert.equal(trusted.code, 0, trusted.out + trusted.err);
+      assert.equal(authorizations.at(-1), `Basic ${Buffer.from('opencode:fixture-secret').toString('base64')}`);
+      await writeCli(dir, 'opencode', '--model --agent provider/model#variant');
       const currentCli = await execute(args);
       assert.equal(currentCli.code, 0, currentCli.out + currentCli.err);
       parsedProfile = JSON.parse(await readFile(join(dir, 'profiles.json'), 'utf8'));
