@@ -39,6 +39,12 @@ function Test-DocInstallLine {
     param([string]$Text, [string]$Expected)
     return [regex]::IsMatch($Text, '(?m)^\s*' + [regex]::Escape($Expected) + '\r?$')
 }
+function Test-DocCurrentReleaseLink {
+    param([string]$Text, [string]$Id, [string]$Version)
+    $intro = (@($Text -split '\r?\n' | Select-Object -First 30) -join ' ')
+    $expected = "https://github.com/hindermath/spec-kit-preset-$Id/releases/tag/v$Version"
+    return $intro.Contains($expected)
+}
 function Test-DocHeadingBoundary {
     param([string]$Text)
     return [regex]::Matches($Text, '<a id="[^"]+"></a>\r?\n\r?\n## ').Count -eq 6
@@ -88,6 +94,9 @@ $readme = [IO.File]::ReadAllText((Join-Path $root 'README.md'))
 $install = "specify preset add --from https://github.com/hindermath/spec-kit-preset-$id/archive/refs/tags/v$version.zip --priority $($package.priority)"
 Assert-DocRequirement (Test-DocInstallLine $readme $install) 'one-line exact candidate installation'
 Assert-DocRequirement (Test-DocVersionMarker $readme $version) 'README version marker'
+Assert-DocRequirement (Test-DocCurrentReleaseLink $readme $id $version) 'README introduction links the current release'
+$staleReleaseLink = "Package v$version https://github.com/hindermath/spec-kit-preset-$id/releases/tag/v0.0.0"
+Assert-DocRequirement (-not (Test-DocCurrentReleaseLink $staleReleaseLink $id $version)) 'stale release-link fixture rejected'
 Assert-DocRequirement ($readme.Contains('docs/user-guide.md') -and $readme.Contains('docs/user-guide.EN.md')) 'paired reader navigation'
 $guides = @()
 foreach ($reader in $package.readers) {
