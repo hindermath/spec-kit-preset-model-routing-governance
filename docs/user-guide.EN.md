@@ -1,8 +1,8 @@
 # User guide: model-routing-governance
 
-<!-- current-package: 0.2.7 -->
+<!-- current-package: 0.2.8 -->
 
-Package identity: **v0.2.7**. [Patch and publication evidence](release-0.2.7-validation.md). The release page, not a source commit, proves publication and the external archive hash. Earlier version records below remain historical.
+Package identity: **v0.2.8**. [Patch and publication evidence](release-0.2.8-validation.md). The release page, not a source commit, proves publication and the external archive hash. Earlier version records below remain historical.
 
 [Release-Abschluss und Verbesserungsprofil / Publication closeout and improvement profile](release-0.1.6-validation.md).
 
