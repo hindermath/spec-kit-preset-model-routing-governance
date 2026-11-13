@@ -26,6 +26,10 @@ jobs:
           if ([int](node -p 'process.versions.node.split(".")[0]') -lt 22) { throw 'Node.js 22+ required' }
       - name: .NET 10 for model-free execution regression
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        # A shared hosted installation can select a preinstalled newer SDK.
+        # Isolate this regression's SDK so child processes also resolve .NET 10.
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/model-routing-dotnet-10
         with:
           dotnet-version: '10.0.x'
       - name: Strict package PowerShell analysis (consumer settings)
