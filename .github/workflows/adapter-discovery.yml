@@ -63,59 +63,29 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         run: bash tests/test-model-routing-discovery.sh
-      - name: Offline contract - test-additive-adapters
+      - name: Adapter and unchanged legacy contracts (offline)
         shell: pwsh
         run: |
           pwsh -NoProfile -File tests/test-additive-adapters.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Offline contract - test-harness-result-transport
-        shell: pwsh
-        run: |
           pwsh -NoProfile -File tests/test-harness-result-transport.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Offline contract - test-broad-model-selection
-        shell: pwsh
-        run: |
           pwsh -NoProfile -File tests/test-broad-model-selection.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Offline contract - test-live-smoke-contract
-        shell: pwsh
-        run: |
           pwsh -NoProfile -File tests/test-live-smoke-contract.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Offline contract - test-execution-policy
-        shell: pwsh
-        run: |
           pwsh -NoProfile -File tests/test-execution-policy.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Offline contract - test-paired-validation
-        shell: pwsh
-        run: |
           pwsh -NoProfile -File tests/test-paired-validation.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Offline contract - test-validation-hardening
-        shell: pwsh
-        run: |
           pwsh -NoProfile -File tests/test-validation-hardening.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Offline contract - test-live-smoke-dotnet
-        shell: pwsh
-        run: |
           pwsh -NoProfile -File tests/test-live-smoke-dotnet.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Offline JavaScript adapter contracts
-        shell: pwsh
-        run: |
           node --test tests/test-sdk-bridge.mjs tests/test-adapter-transports.mjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Offline contract - test-release-status
-        shell: pwsh
-        run: |
           pwsh -NoProfile -File tests/test-release-status.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Verify unchanged checkout
-        shell: pwsh
-        run: |
           git diff --exit-code
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (@(git status --porcelain --untracked-files=all).Count) { throw 'Adapter tests changed checkout' }
