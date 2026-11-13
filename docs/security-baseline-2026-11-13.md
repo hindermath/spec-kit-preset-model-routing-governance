@@ -10,6 +10,8 @@ Die Richtlinie beschreibt Meldeweg, unterstützten Stand, Sicherheitsgrenzen, ko
 
 Distribution: Repository-Quelle, kein Home-Runtime-Sync für diese Richtlinienänderung. CodeQL Default Setup wird nach Lieferung auf dem veröffentlichten Stand eingerichtet. AI Scans, Copilot Autofix und Agentic Autofix bleiben aus. Tatsächliche technische Ergebnisse und analysierte Revisionen werden im PR und Liefernachweis erfasst. GitHub-Darstellung und Sprachmarkierungen werden geprüft; neue praktische Screenreader- und Braille-Prüfungen wurden nicht durchgeführt. Re-Evaluation bei geändertem Meldeweg, Default Branch oder Sicherheitsumfang.
 
+CI-Nachlauf: Die vorhandene .NET-10-Regression erhält eine isolierte SDK-Installation, damit ein neueres vorinstalliertes Hosted-SDK nicht ausgewählt wird. Keine Assertions oder Produktverträge werden geändert.
+
 ## English
 
 The audience includes users, reporters, and maintainers. The reader path leads from GitHub's security overview to SECURITY.md and confidential reporting. SECURITY.md is the canonical security policy, owned by the repository maintainer. Document class: Security Policy. German comes first, followed by equivalent English; CEFR B2 and applicable WCAG 2.2 AA remain review targets.
@@ -17,3 +19,5 @@ The audience includes users, reporters, and maintainers. The reader path leads f
 The policy describes reporting, supported versions, security boundaries, coordinated disclosure, and the limits of automated checks. It adds no support guarantee, exclusion, or risk acceptance. Existing profile content or preset contracts are preserved.
 
 Distribution: repository source; this policy change needs no Home runtime sync. CodeQL Default Setup will be configured against the published revision after delivery. AI scans, Copilot Autofix, and Agentic Autofix remain off. Actual technical results and analysed revisions are recorded in the PR and delivery evidence. GitHub rendering and language metadata will be checked; no new practical screen-reader or Braille tests were performed. Re-evaluate when reporting, the default branch, or security scope changes.
+
+CI follow-up: the existing .NET 10 regression receives an isolated SDK installation so a newer preinstalled hosted SDK is not selected. No assertions or product contracts change.
