@@ -10,15 +10,15 @@
 
 [Lesende Fast-Profile / Read-only fast-profile compatibility](docs/fast-read-only-compatibility.md)
 
-<!-- current-package: 0.2.8 -->
+<!-- current-package: 0.2.9 -->
 
-Paketkennung: **v0.2.8**. Dieses Dokument beschreibt das versionierte Paket.
+Paketkennung: **v0.2.9**. Dieses Dokument beschreibt das versionierte Paket.
 Den tatsächlichen Veröffentlichungsstatus belegt die
-[GitHub-Release-Seite](https://github.com/hindermath/spec-kit-preset-model-routing-governance/releases/tag/v0.2.8).
-Der [Patch-Nachweis](docs/release-0.2.8-validation.md) beschreibt die
+[GitHub-Release-Seite](https://github.com/hindermath/spec-kit-preset-model-routing-governance/releases/tag/v0.2.9).
+Der [Patch-Nachweis](docs/release-0.2.9-validation.md) beschreibt die
 Korrektur des Veröffentlichungslinks; ein Quellcommit allein belegt keine Veröffentlichung.
 
-*Package identity: v0.2.8. This document describes the versioned package.
+*Package identity: v0.2.9. This document describes the versioned package.
 The GitHub release page records actual publication. The patch record explains
 the publication-link correction; a source commit alone does not prove publication.*
 
@@ -201,7 +201,7 @@ DE: Installation des versionierten Pakets; vorhandene Voraussetzungen zuerst pr�
 EN: Install the versioned package after checking its prerequisites.
 
 ```bash
-specify preset add --from https://github.com/hindermath/spec-kit-preset-model-routing-governance/archive/refs/tags/v0.2.8.zip --priority 61
+specify preset add --from https://github.com/hindermath/spec-kit-preset-model-routing-governance/archive/refs/tags/v0.2.9.zip --priority 61
 ```
 
 License: MIT.
